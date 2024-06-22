@@ -389,6 +389,25 @@ func (c CliqueConfig) String() string {
 	return fmt.Sprintf("clique(period: %d, epoch: %d)", c.Period, c.Epoch)
 }
 
+// TurboConfig is the consensus engine configs for proof-of-stake-authority based sealing.
+type TurboConfig struct {
+	Period uint64 `json:"period"` // Number of seconds between blocks to enforce
+	Epoch  uint64 `json:"epoch"`  // Epoch length to reset votes and checkpoint
+
+	// AttestationDelay is the delay number for a validator to provide an attestation.
+	// That is: only attest to a block which height is ≤ `currentHead - AttestationDelay`
+	AttestationDelay uint64 `json:"attestationDelay"`
+
+	Rule                  uint64         `json:"rule"`                  // Version of Turbo, which differ in behavious, 0 is the lastest default one
+	EnableDevVerification bool           `json:"enableDevVerification"` // Enable developer address verification
+	AdminDevnet           common.Address `json:"adminDevnet,omitempty"` // admin address in system contracts of GravitationHardFork for a private chain, ONLY used by develop or private chain.
+}
+
+// String implements the stringer interface, returning the consensus engine details.
+func (c *TurboConfig) String() string {
+	return fmt.Sprintf("turbo(period: %d, epoch: %d)", c.Period, c.Epoch)
+}
+
 // Description returns a human-readable description of ChainConfig.
 func (c *ChainConfig) Description() string {
 	var banner string
