@@ -62,6 +62,13 @@ func (evm *EVM) precompile(addr common.Address) (PrecompiledContract, bool) {
 	return p, ok
 }
 
+type EvmAccessFilter interface {
+	// IsAddressDenied returns whether an address is denied.
+	IsAddressDenied(address common.Address, cType common.AddressCheckType) bool
+	// IsLogDenied returns whether a log (contract event) is denied.
+	IsLogDenied(log *types.Log) bool
+}
+
 // BlockContext provides the EVM with auxiliary information. Once provided
 // it shouldn't be modified.
 type BlockContext struct {

@@ -61,6 +61,30 @@ var (
 		CancunTime:                    newUint64(1710338135),
 		Ethash:                        new(EthashConfig),
 	}
+	// TestnetChainConfig contains the chain parameters to run a node on the test network.
+	TestnetChainConfig = &ChainConfig{
+		ChainID:             big.NewInt(111111), // TODO: temp id for dev
+		HomesteadBlock:      big.NewInt(0),
+		DAOForkBlock:        nil,
+		DAOForkSupport:      true,
+		EIP150Block:         big.NewInt(0),
+		EIP155Block:         big.NewInt(0),
+		EIP158Block:         big.NewInt(0),
+		ByzantiumBlock:      big.NewInt(0),
+		ConstantinopleBlock: big.NewInt(0),
+		PetersburgBlock:     big.NewInt(0),
+		IstanbulBlock:       big.NewInt(0),
+		MuirGlacierBlock:    nil,
+		BerlinBlock:         big.NewInt(0),
+		LondonBlock:         big.NewInt(0),
+		Turbo: &TurboConfig{
+			Period:                3,
+			Epoch:                 200,
+			AttestationDelay:      2,
+			Rule:                  1,
+			EnableDevVerification: true,
+		},
+	}
 	// HoleskyChainConfig contains the chain parameters to run a node on the Holesky test network.
 	HoleskyChainConfig = &ChainConfig{
 		ChainID:                       big.NewInt(17000),
@@ -368,6 +392,7 @@ type ChainConfig struct {
 	// Various consensus engines
 	Ethash *EthashConfig `json:"ethash,omitempty"`
 	Clique *CliqueConfig `json:"clique,omitempty"`
+	Turbo  *TurboConfig  `json:"turbo,omitempty"`
 }
 
 // EthashConfig is the consensus engine configs for proof-of-work based sealing.
