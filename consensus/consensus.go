@@ -23,8 +23,14 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/state"
 	"github.com/ethereum/go-ethereum/core/types"
+	"github.com/ethereum/go-ethereum/core/vm"
+	"github.com/ethereum/go-ethereum/ethdb"
 	"github.com/ethereum/go-ethereum/params"
 	"github.com/ethereum/go-ethereum/rpc"
+)
+
+var (
+	FeeRecoder = common.HexToAddress("0xffffffffffffffffffffffffffffffffffffffff")
 )
 
 // ChainHeaderReader defines a small collection of methods needed to access the local
@@ -83,20 +89,20 @@ type Engine interface {
 	// rules of a particular engine. The changes are executed inline.
 	Prepare(chain ChainHeaderReader, header *types.Header) error
 
-	// Finalize runs any post-transaction state modifications (e.g. block rewards
-	// or process withdrawals) but does not assemble the block.
-	//
-	// Note: The state database might be updated to reflect any consensus rules
-	// that happen at finalization (e.g. block rewards).
-	Finalize(chain ChainHeaderReader, header *types.Header, state *state.StateDB, body *types.Body)
-
-	// FinalizeAndAssemble runs any post-transaction state modifications (e.g. block
-	// rewards or process withdrawals) and assembles the final block.
+	// Finalize runs any post-transaction state modifications (e.g. block rewards)
+	// but does not assemble the block.
 	//
 	// Note: The block header and state database might be updated to reflect any
 	// consensus rules that happen at finalization (e.g. block rewards).
-	FinalizeAndAssemble(chain ChainHeaderReader, header *types.Header, state *state.StateDB, body *types.Body, receipts []*types.Receipt) (*types.Block, error)
+	Finalize(chain ChainHeaderReader, header *types.Header, state *state.StateDB, body *types.Body,
+		receipts *[]*types.Receipt, punishTxs []*types.Transaction, proposalTxs []*types.Transaction) error
 
+	// FinalizeAndAssemble runs any post-transaction state modifications (e.g. block
+	// rewards) and assembles the final block.
+	//
+	// Note: The block header and state database might be updated to reflect any
+	// consensus rules that happen at finalization (e.g. block rewards).
+	FinalizeAndAssemble(chain ChainHeaderReader, header *types.Header, state *state.StateDB, body *types.Body, receipts []*types.Receipt) (*types.Block, []*types.Receipt, error)
 	// Seal generates a new sealing request for the given input block and pushes
 	// the result into the given channel.
 	//
@@ -116,4 +122,75 @@ type Engine interface {
 
 	// Close terminates any background threads maintained by the consensus engine.
 	Close() error
+}
+
+// TurboEngine is a consensus engine based on delegate proof-of-stake and BFT.
+type TurboEngine interface {
+	Engine
+
+	// PreHandle runs any pre-transaction state modifications (e.g. apply hard fork rules).
+	//
+	// Note: The block header and state database might be updated to reflect any
+	// consensus rules that happen at pre-handling.
+	PreHandle(chain ChainHeaderReader, header *types.Header, state *state.StateDB) error
+
+	// VerifyAttestation checks whether an attestation is valid,
+	// and if it's valid, return the signer,
+	// and a threshold that indicates how many attestations can finalize a block.
+	VerifyAttestation(chain ChainHeaderReader, a *types.Attestation) (common.Address, int, error)
+
+	// CurrentValidator Get the verifier address in the current consensus
+	CurrentValidator() common.Address
+	MaxValidators() uint8
+
+	// Attest trys to give an attestation on current chain when a ChainHeadEvent is fired.
+	Attest(chain ChainHeaderReader, headerNum *big.Int, source, target *types.RangeEdge) (*types.Attestation, error)
+	CurrentNeedHandleHeight(headerNum uint64) (uint64, error)
+	AttestationDelay() uint64
+
+	// IsReadyAttest Whether it meets the conditions for executing interest
+	IsReadyAttest() bool
+	AttestationStatus() uint8
+	StartAttestation()
+
+	// AttestationThreshold Get the attestation threshold at the specified height
+	AttestationThreshold(chain ChainHeaderReader, hash common.Hash, number uint64) (int, error)
+
+	Validators(chain ChainHeaderReader, hash common.Hash, number uint64) ([]common.Address, error)
+
+	// CalculateGasPool calculate the expected max gas used for a block
+	CalculateGasPool(header *types.Header) uint64
+
+	GetDb() ethdb.Database
+
+	VerifyCasperFFGRule(beforeSourceNum uint64, beforeTargetNum uint64, afterSourceNum uint64, afterTargetNum uint64) int
+	// IsDoubleSignPunishTransaction checks whether a specific transaction is a system transaction.
+	IsDoubleSignPunishTransaction(sender common.Address, tx *types.Transaction, header *types.Header) bool
+
+	// ExtraValidateOfTx do some consensus related validation to a given transaction.
+	ExtraValidateOfTx(sender common.Address, tx *types.Transaction, header *types.Header) error
+
+	ApplyDoubleSignPunishTx(evm *vm.EVM, sender common.Address, tx *types.Transaction) (ret []byte, vmerr error, err error)
+
+	// IsSysTransaction checks whether a specific transaction is a system transaction.
+	IsSysTransaction(sender common.Address, tx *types.Transaction, header *types.Header) bool
+
+	// CanCreate determines where a given address can create a new contract.
+	CanCreate(state StateReader, addr common.Address, isContract bool, height *big.Int) bool
+
+	// FilterTx do a consensus-related validation on the given transaction at the given header and state.
+	FilterTx(sender common.Address, tx *types.Transaction, header *types.Header, parentState *state.StateDB) error
+
+	// CreateEvmAccessFilter returns a EvmAccessFilter if necessary.
+	CreateEvmAccessFilter(header *types.Header, parentState *state.StateDB) vm.EvmAccessFilter
+
+	//Methods for debug trace
+
+	// ApplyProposalTx applies a system-transaction using a given evm,
+	// the main purpose of this method is for tracing a system-transaction.
+	ApplyProposalTx(evm *vm.EVM, state *state.StateDB, txIndex int, sender common.Address, tx *types.Transaction) (ret []byte, vmerr error, err error)
+}
+
+type StateReader interface {
+	GetState(addr common.Address, hash common.Hash) common.Hash
 }
