@@ -515,6 +515,20 @@ func (s *StateDB) Selfdestruct6780(addr common.Address) {
 	}
 }
 
+// Erase sets the code/storage-root to empty for the given account.
+// This's a governance action.
+//
+// The account is still available, and with it's balance unchanged.
+func (s *StateDB) Erase(addr common.Address) bool {
+	stateObject := s.getStateObject(addr)
+	if stateObject == nil {
+		return false
+	}
+	stateObject.erase()
+
+	return true
+}
+
 // SetTransientState sets transient storage for a given account. It
 // adds the change to the journal so that it can be rolled back
 // to its previous value if there is a revert.

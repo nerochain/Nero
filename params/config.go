@@ -27,6 +27,7 @@ import (
 // Genesis hashes to enforce below configs on.
 var (
 	MainnetGenesisHash = common.HexToHash("0xd4e56740f876aef8c010b86a40d5f56745a118d0906a34e69aec8c0db1cb8fa3")
+	TestnetGenesisHash = common.HexToHash("0xd4e56740f876aef8c010b86a40d5f56745a118d0906a34e69aec8c0db1cb8fa3")
 	HoleskyGenesisHash = common.HexToHash("0xb5f7f912443c940f21fd611f12828d75b534364ed9e95ca4e307729a4661bde4")
 	SepoliaGenesisHash = common.HexToHash("0x25a5cc106eea7138acab33231d7160d69cb777ee0c2c553fcddf5138993e6dd9")
 	GoerliGenesisHash  = common.HexToHash("0xbf7e331f7f7c1dd2e05159666b3bf8bc7a8a3a9eb1d518969eab529dd9b88c1a")
@@ -60,6 +61,12 @@ var (
 		ShanghaiTime:                  newUint64(1681338455),
 		CancunTime:                    newUint64(1710338135),
 		Ethash:                        new(EthashConfig),
+		Turbo: &TurboConfig{
+			Period:                3,
+			Epoch:                 200,
+			AttestationDelay:      2,
+			EnableDevVerification: true,
+		},
 	}
 	// TestnetChainConfig contains the chain parameters to run a node on the test network.
 	TestnetChainConfig = &ChainConfig{
@@ -242,6 +249,36 @@ var (
 		Clique:                        &CliqueConfig{Period: 0, Epoch: 30000},
 	}
 
+	// AllCliqueProtocolChanges contains every protocol in Turbo consensus
+	AllTurboProtocolChanges = &ChainConfig{
+		ChainID:                       big.NewInt(1337),
+		HomesteadBlock:                big.NewInt(0),
+		DAOForkBlock:                  nil,
+		DAOForkSupport:                false,
+		EIP150Block:                   big.NewInt(0),
+		EIP155Block:                   big.NewInt(0),
+		EIP158Block:                   big.NewInt(0),
+		ByzantiumBlock:                big.NewInt(0),
+		ConstantinopleBlock:           big.NewInt(0),
+		PetersburgBlock:               big.NewInt(0),
+		IstanbulBlock:                 big.NewInt(0),
+		MuirGlacierBlock:              big.NewInt(0),
+		BerlinBlock:                   big.NewInt(0),
+		LondonBlock:                   big.NewInt(0),
+		ArrowGlacierBlock:             nil,
+		GrayGlacierBlock:              nil,
+		MergeNetsplitBlock:            nil,
+		ShanghaiTime:                  nil,
+		CancunTime:                    nil,
+		PragueTime:                    nil,
+		VerkleTime:                    nil,
+		TerminalTotalDifficulty:       nil,
+		TerminalTotalDifficultyPassed: false,
+		Ethash:                        nil,
+		Clique:                        nil,
+		Turbo:                         &TurboConfig{Period: 0, Epoch: 30000, AttestationDelay: 2},
+	}
+
 	// TestChainConfig contains every protocol change (EIPs) introduced
 	// and accepted by the Ethereum core developers for testing purposes.
 	TestChainConfig = &ChainConfig{
@@ -334,9 +371,12 @@ var (
 	TestRules = TestChainConfig.Rules(new(big.Int), false, 0)
 )
 
+var ContinousInturn = uint64(4)
+
 // NetworkNames are user friendly names to use in the chain spec banner.
 var NetworkNames = map[string]string{
 	MainnetChainConfig.ChainID.String(): "mainnet",
+	TestChainConfig.ChainID.String():    "testnet",
 	GoerliChainConfig.ChainID.String():  "goerli",
 	SepoliaChainConfig.ChainID.String(): "sepolia",
 	HoleskyChainConfig.ChainID.String(): "holesky",
@@ -460,6 +500,8 @@ func (c *ChainConfig) Description() string {
 		} else {
 			banner += "Consensus: Beacon (proof-of-stake), merged from Clique (proof-of-authority)\n"
 		}
+	case c.Turbo != nil:
+		banner += "Consensus: Turbo\n"
 	default:
 		banner += "Consensus: unknown\n"
 	}
@@ -819,6 +861,19 @@ func (c *ChainConfig) LatestFork(time uint64) forks.Fork {
 	default:
 		return forks.Paris
 	}
+}
+
+func (c *ChainConfig) TurboContinuousInturn(blockNumber *big.Int) uint64 {
+	return ContinousInturn
+}
+
+// IsTurboCompatible checks whether consensus config of Turbo is compatible
+func (c *ChainConfig) IsTurboCompatible(newcfg *ChainConfig) bool {
+	if c.Turbo != nil && newcfg.Turbo != nil {
+		return c.Turbo.Period == newcfg.Turbo.Period && c.Turbo.Epoch == newcfg.Turbo.Epoch &&
+			c.Turbo.AttestationDelay == newcfg.Turbo.AttestationDelay
+	}
+	return c.Turbo == nil && newcfg.Turbo == nil
 }
 
 // isForkBlockIncompatible returns true if a fork scheduled at block s1 cannot be

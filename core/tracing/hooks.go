@@ -214,6 +214,12 @@ const (
 	// BalanceIncreaseGenesisBalance is ether allocated at the genesis block.
 	BalanceIncreaseGenesisBalance BalanceChangeReason = 4
 
+	// Turbo Consensus
+	// BalanceIncreaseRewardBlockFee is a reward of block fee.
+	BalanceIncreaseRewardBlockFee BalanceChangeReason = 101
+	// BalanceClearFeeRecored is setting the fee-recording address to 0.
+	BalanceClearFeeRecored BalanceChangeReason = 102
+
 	// Transaction fees
 	// BalanceIncreaseRewardTransactionFee is the transaction tip increasing block builder's balance.
 	BalanceIncreaseRewardTransactionFee BalanceChangeReason = 5

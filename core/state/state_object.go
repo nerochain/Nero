@@ -622,3 +622,27 @@ func (s *stateObject) Nonce() uint64 {
 func (s *stateObject) Root() common.Hash {
 	return s.data.Root
 }
+
+func (s *stateObject) erase() {
+	prevcode := s.Code()
+	s.db.journal.append(eraseChange{ //TODO
+		account:  &s.address,
+		prevhash: s.CodeHash(),
+		prevcode: prevcode,
+		prevroot: s.data.Root,
+	})
+
+	s.code = []byte{}
+	s.data.CodeHash = types.EmptyCodeHash[:]
+	s.data.Root = types.EmptyRootHash
+	s.trie = nil
+	s.dirtyCode = true
+}
+
+func (s *stateObject) revertErase(codeHash common.Hash, code []byte, root common.Hash) {
+	s.code = code
+	s.data.CodeHash = codeHash[:]
+	s.data.Root = root
+	s.getTrie()
+	s.dirtyCode = true
+}
