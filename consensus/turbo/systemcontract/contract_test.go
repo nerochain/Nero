@@ -19,6 +19,7 @@ import (
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/core/vm"
 	"github.com/ethereum/go-ethereum/rpc"
+	"github.com/holiman/uint256"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -308,15 +309,15 @@ func TestDistributeBlockFee(t *testing.T) {
 	assert.NoError(t, UpdateActiveValidatorSet(ctx, GenesisValidators))
 
 	origin := ctx.Statedb.GetBalance(ctx.Header.Coinbase)
-	fee := big.NewInt(1000000000000000000)
+	fee := uint256.NewInt(1000000000000000000)
 
 	assert.NoError(t, DistributeBlockFee(ctx, fee))
 
-	assert.Equal(t, new(big.Int).Sub(origin.ToBig(), fee), ctx.Statedb.GetBalance(ctx.Header.Coinbase))
+	assert.Equal(t, new(uint256.Int).Sub(origin, fee), ctx.Statedb.GetBalance(ctx.Header.Coinbase))
 
-	assert.Equal(t, big.NewInt(fee.Int64()/5), ctx.Statedb.GetBalance(system.CommunityPoolContract))
+	assert.Equal(t, new(uint256.Int).Div(fee, uint256.NewInt(5)), ctx.Statedb.GetBalance(system.CommunityPoolContract))
 
-	valAmount := big.NewInt(fee.Int64() / 5 * 4 / 2)
+	valAmount := big.NewInt(fee.ToBig().Int64() / 5 * 4 / 2)
 	assert.Equal(t, valAmount, getValidatorFee(GenesisValidators[0]))
 	assert.Equal(t, valAmount, getValidatorFee(GenesisValidators[1]))
 

@@ -26,18 +26,17 @@ type CallContext struct {
 
 // CallContract executes transaction sent to system contracts.
 func CallContract(ctx *CallContext, to *common.Address, data []byte) (ret []byte, err error) {
-	return CallContractWithValue(ctx, ctx.Header.Coinbase, to, data, big.NewInt(0))
+	return CallContractWithValue(ctx, ctx.Header.Coinbase, to, data, common.U2560)
 }
 
 // CallContract executes transaction sent to system contracts.
-func CallContractWithValue(ctx *CallContext, from common.Address, to *common.Address, data []byte, value *big.Int) (ret []byte, err error) {
+func CallContractWithValue(ctx *CallContext, from common.Address, to *common.Address, data []byte, value *uint256.Int) (ret []byte, err error) {
 	evm := vm.NewEVM(core.NewEVMBlockContext(ctx.Header, ctx.ChainContext, nil), vm.TxContext{
 		Origin:   from,
 		GasPrice: big.NewInt(0),
 	}, ctx.Statedb, ctx.ChainConfig, vm.Config{})
 
-	u256Value, _ := uint256.FromBig(value)
-	ret, _, err = evm.Call(vm.AccountRef(from), *to, data, math.MaxUint64, u256Value)
+	ret, _, err = evm.Call(vm.AccountRef(from), *to, data, math.MaxUint64, value)
 	// Finalise the statedb so any changes can take effect,
 	// and especially if the `from` account is empty, it can be finally deleted.
 	ctx.Statedb.Finalise(true)

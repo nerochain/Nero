@@ -15,6 +15,7 @@ import (
 	"github.com/ethereum/go-ethereum/core"
 	"github.com/ethereum/go-ethereum/core/vm"
 	"github.com/ethereum/go-ethereum/log"
+	"github.com/holiman/uint256"
 )
 
 const TopValidatorNum uint8 = 21
@@ -109,7 +110,7 @@ func UpdateRewardsInfo(ctx *contracts.CallContext) error {
 }
 
 // DistributeBlockFee return the result of calling method `distributeBlockFee` in Staking contract
-func DistributeBlockFee(ctx *contracts.CallContext, fee *big.Int) error {
+func DistributeBlockFee(ctx *contracts.CallContext, fee *uint256.Int) error {
 	const method = "distributeBlockFee"
 	data, err := system.ABIPack(system.StakingContract, method)
 	if err != nil {
@@ -327,7 +328,8 @@ func FinishProposalById(ctx *contracts.CallContext, id *big.Int) error {
 
 // ExecuteProposal executes proposal
 func ExecuteProposal(ctx *contracts.CallContext, prop *Proposal) error {
-	_, err := contracts.CallContractWithValue(ctx, prop.From, &prop.To, prop.Data, prop.Value)
+	value, _ := uint256.FromBig(prop.Value)
+	_, err := contracts.CallContractWithValue(ctx, prop.From, &prop.To, prop.Data, value)
 	if err != nil {
 		log.Error("ExecuteProposal failed", "proposal", prop, "err", err)
 	}
