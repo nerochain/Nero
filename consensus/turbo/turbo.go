@@ -932,7 +932,7 @@ func (c *Turbo) APIs(chain consensus.ChainHeaderReader) []rpc.API {
 	return []rpc.API{{
 		Namespace: "turbo",
 		Version:   "1.0",
-		Service:   nil, // TODO turbo api
+		Service:   &API{chain: chain, turbo: c},
 		Public:    false,
 	}}
 }
