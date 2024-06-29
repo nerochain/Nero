@@ -22,6 +22,7 @@ import (
 	"fmt"
 	"math/big"
 	"slices"
+	"sort"
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/consensus/misc/eip4844"
@@ -803,6 +804,10 @@ func DeleteBlockWithoutNumber(db ethdb.KeyValueWriter, hash common.Hash, number 
 }
 
 const badBlockToKeep = 10
+const blockStatusToKeep = 100
+const attestationToKeep = 50
+const casperFFGToKeep = 50
+const casperFFGPunishToKeep = 2 * 200 / 2 * 20
 
 type badBlock struct {
 	Header *types.Header
@@ -950,4 +955,154 @@ func ReadHeadBlock(db ethdb.Reader) *types.Block {
 		return nil
 	}
 	return ReadBlock(db, headBlockHash, *headBlockNumber)
+}
+
+func ReadLastAttestNumber(db ethdb.Reader, val common.Address) *big.Int {
+	key := append(lastAttestPrefix, val.Bytes()...)
+	data, _ := db.Get(key)
+	return new(big.Int).SetBytes(data)
+}
+
+func WriteLastAttestNumber(db ethdb.KeyValueWriter, val common.Address, num *big.Int) {
+	key := append(lastAttestPrefix, val.Bytes()...)
+	err := db.Put(key, num.Bytes())
+	if err != nil {
+		log.Crit("Failed to store last attest number", "err", err)
+	}
+}
+
+func WriteLastBlockStatusNumber(db ethdb.KeyValueWriter, num *big.Int) {
+	err := db.Put(lastBlockStatusKey, num.Bytes())
+	if err != nil {
+		log.Crit("Failed to store last attest status number", "err", err)
+	}
+}
+
+func LastBlockStatusNumber(db ethdb.Reader) *big.Int {
+	data, _ := db.Get(lastBlockStatusKey)
+	return new(big.Int).SetBytes(data)
+}
+
+func WriteLastFinalizedBlockNumber(db ethdb.KeyValueWriter, num *big.Int) {
+	err := db.Put(lastFinalizedNumKey, num.Bytes())
+	if err != nil {
+		log.Crit("Failed to store last attest status number", "err", err)
+	}
+}
+
+func LastFinalizedBlockNumber(db ethdb.Reader) *big.Int {
+	data, _ := db.Get(lastFinalizedNumKey)
+	return new(big.Int).SetBytes(data)
+}
+
+func IsReadyReadBlockStatus(db ethdb.Reader) (bool, error) {
+	return db.Has(blockStatusKey)
+}
+
+func ReadBlockStatusByNum(db ethdb.Reader, num *big.Int) (uint8, common.Hash) {
+	key := append(blockStatusKey, num.Bytes()...)
+	blob, _ := db.Get(key)
+	var bs types.BlockStatus
+	if len(blob) > 0 {
+		if err := rlp.DecodeBytes(blob, &bs); err != nil {
+			log.Crit("failed to decode old bad blocks")
+		}
+		return bs.Status, bs.Hash
+	}
+	return types.BasUnknown, common.Hash{}
+}
+
+func WriteBlockStatus(db ethdb.KeyValueStore, num *big.Int, hash common.Hash, status uint8) error {
+	key := append(blockStatusKey, num.Bytes()...)
+	blockStatus := &types.BlockStatus{
+		BlockNumber: num,
+		Hash:        hash,
+		Status:      status,
+	}
+	data, err := rlp.EncodeToBytes(blockStatus)
+	if err != nil {
+		log.Crit("failed to encode block status %v", err.Error())
+	}
+	if err := db.Put(key, data); err != nil {
+		log.Crit("failed to write block status %v", err.Error())
+	}
+	return nil
+}
+
+func ReadAllViolateCasperFFGPunish(db ethdb.Reader) []*types.ViolateCasperFFGPunish {
+	blob, err := db.Get(violateCasperFFGPunishKey)
+	if err != nil {
+		return nil
+	}
+	var vcfList types.ViolateCasperFFGPunishList
+	if err := rlp.DecodeBytes(blob, &vcfList); err != nil {
+		return nil
+	}
+	return vcfList
+}
+
+func DeleteViolateCasperFFGPunish(db ethdb.KeyValueStore, p *types.ViolateCasperFFGPunish) {
+	blob, _ := db.Get(violateCasperFFGPunishKey)
+	var vcfList types.ViolateCasperFFGPunishList
+	if len(blob) > 0 {
+		if err := rlp.DecodeBytes(blob, &vcfList); err != nil {
+			log.Crit("Failed to decode old bad blocks", "error", err)
+		}
+	}
+
+	for i, v := range vcfList {
+		if p.Hash() == v.Hash() {
+			vcfList = append(vcfList[:i], vcfList[i+1:]...)
+			break
+		}
+	}
+
+	data, err := rlp.EncodeToBytes(vcfList)
+	if err != nil {
+		log.Crit("Failed to encode violate casperFFG punish", "err", err)
+	}
+	if err := db.Put(violateCasperFFGPunishKey, data); err != nil {
+		log.Crit("Failed to write violate casperFFG punish", "err", err)
+	}
+}
+
+func ClearAllViolateCasperFFGPunish(db ethdb.KeyValueStore) {
+	if err := db.Delete(violateCasperFFGPunishKey); err != nil {
+		log.Crit("Failed to delete violate casperFFG punish", "err", err)
+	}
+}
+
+func WriteViolateCasperFFGPunish(db ethdb.KeyValueStore, before *types.Attestation, after *types.Attestation, pType int, blockNum *big.Int) error {
+	blob, _ := db.Get(violateCasperFFGPunishKey)
+
+	var vcfList types.ViolateCasperFFGPunishList
+	if len(blob) > 0 {
+		if err := rlp.DecodeBytes(blob, &vcfList); err != nil {
+			log.Crit("Failed to decode old bad blocks", "error", err)
+		}
+	}
+
+	for _, v := range vcfList {
+		if v.Before.Hash() == before.Hash() && v.After.Hash() == after.Hash() {
+			return fmt.Errorf("skip duplicated punish %v %v", before.Hash().String(), after.Hash().String())
+		}
+	}
+	vcfList = append(vcfList, &types.ViolateCasperFFGPunish{
+		PunishType: new(big.Int).SetUint64(uint64(pType)),
+		Before:     before,
+		After:      after,
+		BlockNum:   blockNum,
+	})
+	sort.Sort(sort.Reverse(vcfList))
+	if len(vcfList) > casperFFGPunishToKeep {
+		vcfList = vcfList[:casperFFGPunishToKeep]
+	}
+	data, err := rlp.EncodeToBytes(vcfList)
+	if err != nil {
+		log.Crit("Failed to encode violate casperFFG punish", "err", err)
+	}
+	if err := db.Put(violateCasperFFGPunishKey, data); err != nil {
+		log.Crit("Failed to write violate casperFFG punish", "err", err)
+	}
+	return nil
 }

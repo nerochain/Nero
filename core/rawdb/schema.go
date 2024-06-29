@@ -117,6 +117,15 @@ var (
 	TrieNodeStoragePrefix = []byte("O") // TrieNodeStoragePrefix + accountHash + hexPath -> trie node
 	stateIDPrefix         = []byte("L") // stateIDPrefix + state root -> state id
 
+	// lastAttestKey tracks the latest block number
+	lastAttestPrefix          = []byte("LA")   // lastAttestPrefix + address -> the latest block number that a local validator have given an attestation
+	blockStatusKey            = []byte("BSK")  // blockStatusKey
+	lastBlockStatusKey        = []byte("LBSK") // lastBlockStatusKey
+	lastFinalizedNumKey       = []byte("LFBNK")
+	casperFFGAttestationsKey  = []byte("CFA") // casperFFGAttestationsKey
+	epochCheckBpsKey          = []byte("ECB")
+	violateCasperFFGPunishKey = []byte("VCF")
+
 	PreimagePrefix = []byte("secure-key-")       // PreimagePrefix + hash -> preimage
 	configPrefix   = []byte("ethereum-config-")  // config prefix for the db
 	genesisPrefix  = []byte("ethereum-genesis-") // genesis state prefix for the db
