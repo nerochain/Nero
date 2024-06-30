@@ -112,7 +112,7 @@ func (b *BlockGen) SetParentBeaconRoot(root common.Hash) {
 // customized rules.
 // - bc:       enables the ability to query historical block hashes for BLOCKHASH
 // - vmConfig: extends the flexibility for customizing evm rules, e.g. enable extra EIPs
-func (b *BlockGen) addTx(bc *BlockChain, vmConfig vm.Config, tx *types.Transaction) {
+func (b *BlockGen) addTx(bc *BlockChain, vmConfig vm.Config, tx *types.Transaction) *types.Receipt {
 	if b.gasPool == nil {
 		b.SetCoinbase(common.Address{})
 	}
@@ -126,6 +126,7 @@ func (b *BlockGen) addTx(bc *BlockChain, vmConfig vm.Config, tx *types.Transacti
 	if b.header.BlobGasUsed != nil {
 		*b.header.BlobGasUsed += receipt.BlobGasUsed
 	}
+	return receipt
 }
 
 // AddTx adds a transaction to the generated block. If no coinbase has
@@ -147,8 +148,8 @@ func (b *BlockGen) AddTx(tx *types.Transaction) {
 // protocol-imposed limitations (gas limit, etc.), there are some further limitations on
 // the content of transactions that can be added. If contract code relies on the BLOCKHASH
 // instruction, the block in chain will be returned.
-func (b *BlockGen) AddTxWithChain(bc *BlockChain, tx *types.Transaction) {
-	b.addTx(bc, vm.Config{}, tx)
+func (b *BlockGen) AddTxWithChain(bc *BlockChain, tx *types.Transaction) *types.Receipt {
+	return b.addTx(bc, vm.Config{}, tx)
 }
 
 // AddTxWithVMConfig adds a transaction to the generated block. If no coinbase has

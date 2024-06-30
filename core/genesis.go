@@ -535,6 +535,15 @@ func DefaultGenesisBlock() *Genesis {
 	}
 }
 
+// BasicTurboGenesisBlock returns a genesis containing basic allocation for Chais engine,
+func BasicTurboGenesisBlock(config *params.ChainConfig, initialValidators []common.Address, faucet common.Address) *Genesis { //TODO
+	return &Genesis{
+		Config:     config,
+		GasLimit:   0x280de80,
+		Difficulty: big.NewInt(2),
+	}
+}
+
 // DefaultGoerliGenesisBlock returns the Görli network genesis block.
 func DefaultGoerliGenesisBlock() *Genesis {
 	return &Genesis{
