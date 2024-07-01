@@ -219,15 +219,17 @@ type BlockChain struct {
 	stateCache    state.Database                   // State database to reuse between imports (contains state cache)
 	txIndexer     *txIndexer                       // Transaction indexer, might be nil if not enabled
 
-	hc            *HeaderChain
-	rmLogsFeed    event.Feed
-	chainFeed     event.Feed
-	chainSideFeed event.Feed
-	chainHeadFeed event.Feed
-	logsFeed      event.Feed
-	blockProcFeed event.Feed
-	scope         event.SubscriptionScope
-	genesisBlock  *types.Block
+	hc                               *HeaderChain
+	rmLogsFeed                       event.Feed
+	chainFeed                        event.Feed
+	chainSideFeed                    event.Feed
+	chainHeadFeed                    event.Feed
+	logsFeed                         event.Feed
+	blockProcFeed                    event.Feed
+	newAttestationFeed               event.Feed
+	newJustifiedOrFinalizedBlockFeed event.Feed
+	scope                            event.SubscriptionScope
+	genesisBlock                     *types.Block
 
 	// This mutex synchronizes chain write operations.
 	// Readers don't need to take it, they can just read the database.
@@ -258,6 +260,26 @@ type BlockChain struct {
 	forker     *ForkChoice
 	vmConfig   vm.Config
 	logger     *tracing.Hooks
+
+	TurboEngine              consensus.TurboEngine
+	currentAttestedNumber    atomic.Value // Currently the latest attested block number that is stored in db
+	currentBlockStatusNumber atomic.Value
+	lastFinalizedBlockNumber atomic.Value
+	firstCatchUpNumber       atomic.Value
+	FutureAttessCache        *lru.Cache[uint64, *types.FutureAttestations]   // Future attestations are attestations added for later processing
+	RecentAttessCache        *lru.Cache[uint64, *types.BlockNumAttestations] // Cache for the most recent attestations hashes, use it to skip duplicate-processing.
+	HistoryAttessCache       *lru.Cache[uint64, *types.HistoryAttestations]
+	CasperFFGHistoryCache    *lru.Cache[interface{}, types.CasperFFGHistoryList]
+	BlockStatusCache         *lru.Cache[uint64, *types.BlockStatus]
+
+	currentEpochCheckBps atomic.Value // types.EpochCheckBps
+	lock                 sync.RWMutex
+
+	lockAddOneAttestationToRecentCache sync.RWMutex
+	lockHistoryAttessCache             sync.RWMutex
+	lockFutureAttessCache              sync.RWMutex
+	lockRecentAttessCache              sync.RWMutex
+	lockCasperFFGHistoryCache          sync.RWMutex
 }
 
 // NewBlockChain returns a fully initialised block chain using information
@@ -1181,6 +1203,12 @@ const (
 	NonStatTy WriteStatus = iota
 	CanonStatTy
 	SideStatTy
+)
+
+const (
+	NotSure = iota
+	NoNeedReorg
+	NeedReorg
 )
 
 // InsertReceiptChain attempts to complete an already existing header chain with

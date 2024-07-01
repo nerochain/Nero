@@ -41,3 +41,9 @@ type ChainSideEvent struct {
 }
 
 type ChainHeadEvent struct{ Block *types.Block }
+
+type NewAttestationEvent struct{ A *types.Attestation }
+
+type NewJustifiedOrFinalizedBlockEvent struct {
+	JF *types.BlockStatus
+}
