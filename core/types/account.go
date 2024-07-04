@@ -38,9 +38,58 @@ type Account struct {
 	Storage map[common.Hash]common.Hash `json:"storage,omitempty"`
 	Balance *big.Int                    `json:"balance" gencodec:"required"`
 	Nonce   uint64                      `json:"nonce,omitempty"`
+	Init    *Init                       `json:"init,omitempty"`
 
 	// used in tests
 	PrivateKey []byte `json:"secretKey,omitempty"`
+}
+
+type Init struct {
+	Admin           common.Address  `json:"admin,omitempty"`
+	FirstLockPeriod *big.Int        `json:"firstLockPeriod,omitempty"`
+	ReleasePeriod   *big.Int        `json:"releasePeriod,omitempty"`
+	ReleaseCnt      *big.Int        `json:"releaseCnt,omitempty"`
+	RuEpoch         *big.Int        `json:"ruEpoch,omitempty"`
+	PeriodTime      *big.Int        `json:"periodTime,omitempty"`
+	LockedAccounts  []LockedAccount `json:"lockedAccounts,omitempty"`
+}
+
+// LockedAccount represents the info of the locked account
+type LockedAccount struct {
+	UserAddress  common.Address `json:"userAddress,omitempty"`
+	TypeId       *big.Int       `json:"typeId,omitempty"`
+	LockedAmount *big.Int       `json:"lockedAmount,omitempty"`
+	LockedTime   *big.Int       `json:"lockedTime,omitempty"`
+	PeriodAmount *big.Int       `json:"periodAmount,omitempty"`
+}
+
+// ValidatorInfo represents the info of inital validators
+type ValidatorInfo struct {
+	Address          common.Address `json:"address"         gencodec:"required"`
+	Manager          common.Address `json:"manager"         gencodec:"required"`
+	Rate             *big.Int       `json:"rate,omitempty"`
+	Stake            *big.Int       `json:"stake,omitempty"`
+	AcceptDelegation bool           `json:"acceptDelegation,omitempty"`
+}
+
+// MakeValidator creates ValidatorInfo
+func MakeValidator(address, manager, rate, stake string, acceptDelegation bool) ValidatorInfo {
+	rateNum, ok := new(big.Int).SetString(rate, 10)
+	if !ok {
+		panic("Failed to make validator info due to invalid rate")
+	}
+	stakeNum, ok := new(big.Int).SetString(stake, 10)
+	if !ok {
+		panic("Failed to make validator info due to invalid stake")
+	}
+
+	return ValidatorInfo{
+		Address:          common.HexToAddress(address),
+		Manager:          common.HexToAddress(manager),
+		Rate:             rateNum,
+		Stake:            stakeNum,
+		AcceptDelegation: acceptDelegation,
+	}
 }
 
 type accountMarshaling struct {
@@ -49,6 +98,26 @@ type accountMarshaling struct {
 	Nonce      math.HexOrDecimal64
 	Storage    map[storageJSON]storageJSON
 	PrivateKey hexutil.Bytes
+}
+
+type initMarshaling struct {
+	FirstLockPeriod *math.HexOrDecimal256
+	ReleasePeriod   *math.HexOrDecimal256
+	ReleaseCnt      *math.HexOrDecimal256
+	RuEpoch         *math.HexOrDecimal256
+	PeriodTime      *math.HexOrDecimal256
+}
+
+type lockedAccountMarshaling struct {
+	TypeId       *math.HexOrDecimal256
+	LockedAmount *math.HexOrDecimal256
+	LockedTime   *math.HexOrDecimal256
+	PeriodAmount *math.HexOrDecimal256
+}
+
+type validatorInfoMarshaling struct {
+	Rate  *math.HexOrDecimal256
+	Stake *math.HexOrDecimal256
 }
 
 // storageJSON represents a 256 bit byte array, but allows less than 256 bits when

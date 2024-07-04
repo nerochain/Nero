@@ -215,10 +215,8 @@ const (
 	BalanceIncreaseGenesisBalance BalanceChangeReason = 4
 
 	// Turbo Consensus
-	// BalanceIncreaseRewardBlockFee is a reward of block fee.
-	BalanceIncreaseRewardBlockFee BalanceChangeReason = 101
 	// BalanceClearFeeRecored is setting the fee-recording address to 0.
-	BalanceClearFeeRecored BalanceChangeReason = 102
+	BalanceClearFeeRecored BalanceChangeReason = 101
 
 	// Transaction fees
 	// BalanceIncreaseRewardTransactionFee is the transaction tip increasing block builder's balance.

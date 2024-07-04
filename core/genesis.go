@@ -27,6 +27,7 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/common/math"
+	"github.com/ethereum/go-ethereum/contracts/system"
 	"github.com/ethereum/go-ethereum/core/rawdb"
 	"github.com/ethereum/go-ethereum/core/state"
 	"github.com/ethereum/go-ethereum/core/tracing"
@@ -55,15 +56,16 @@ type GenesisAlloc = types.GenesisAlloc
 // Genesis specifies the header fields, state of a genesis block. It also defines hard
 // fork switch-over blocks through the chain configuration.
 type Genesis struct {
-	Config     *params.ChainConfig `json:"config"`
-	Nonce      uint64              `json:"nonce"`
-	Timestamp  uint64              `json:"timestamp"`
-	ExtraData  []byte              `json:"extraData"`
-	GasLimit   uint64              `json:"gasLimit"   gencodec:"required"`
-	Difficulty *big.Int            `json:"difficulty" gencodec:"required"`
-	Mixhash    common.Hash         `json:"mixHash"`
-	Coinbase   common.Address      `json:"coinbase"`
-	Alloc      types.GenesisAlloc  `json:"alloc"      gencodec:"required"`
+	Config     *params.ChainConfig   `json:"config"`
+	Nonce      uint64                `json:"nonce"`
+	Timestamp  uint64                `json:"timestamp"`
+	ExtraData  []byte                `json:"extraData"`
+	GasLimit   uint64                `json:"gasLimit"   gencodec:"required"`
+	Difficulty *big.Int              `json:"difficulty" gencodec:"required"`
+	Mixhash    common.Hash           `json:"mixHash"`
+	Coinbase   common.Address        `json:"coinbase"`
+	Alloc      types.GenesisAlloc    `json:"alloc"      gencodec:"required"`
+	Validators []types.ValidatorInfo `json:"validators"`
 
 	// These fields are used for consensus tests. Please don't use them
 	// in actual genesis blocks.
@@ -114,7 +116,7 @@ func ReadGenesis(db ethdb.Database) (*Genesis, error) {
 }
 
 // hashAlloc computes the state root according to the genesis specification.
-func hashAlloc(ga *types.GenesisAlloc, isVerkle bool) (common.Hash, error) {
+func hashAlloc(ga *types.GenesisAlloc, isVerkle bool) (common.Hash, *state.StateDB, error) {
 	// If a genesis-time verkle trie is requested, create a trie config
 	// with the verkle trie enabled so that the tree can be initialized
 	// as such.
@@ -130,7 +132,7 @@ func hashAlloc(ga *types.GenesisAlloc, isVerkle bool) (common.Hash, error) {
 	db := state.NewDatabaseWithConfig(rawdb.NewMemoryDatabase(), config)
 	statedb, err := state.New(types.EmptyRootHash, db, nil)
 	if err != nil {
-		return common.Hash{}, err
+		return common.Hash{}, nil, err
 	}
 	for addr, account := range *ga {
 		if account.Balance != nil {
@@ -142,17 +144,19 @@ func hashAlloc(ga *types.GenesisAlloc, isVerkle bool) (common.Hash, error) {
 			statedb.SetState(addr, key, value)
 		}
 	}
-	return statedb.Commit(0, false)
+	root, err := statedb.Commit(0, false)
+	return root, statedb, err
 }
 
 // flushAlloc is very similar with hash, but the main difference is all the generated
 // states will be persisted into the given database. Also, the genesis state
 // specification will be flushed as well.
-func flushAlloc(ga *types.GenesisAlloc, db ethdb.Database, triedb *triedb.Database, blockhash common.Hash) error {
+func flushAlloc(g *Genesis, db ethdb.Database, triedb *triedb.Database, block *types.Block) error {
 	statedb, err := state.New(types.EmptyRootHash, state.NewDatabaseWithNodeDB(db, triedb), nil)
 	if err != nil {
 		return err
 	}
+	ga := &g.Alloc
 	for addr, account := range *ga {
 		if account.Balance != nil {
 			// This is not actually logged via tracer because OnGenesisBlock
@@ -163,6 +167,26 @@ func flushAlloc(ga *types.GenesisAlloc, db ethdb.Database, triedb *triedb.Databa
 		statedb.SetNonce(addr, account.Nonce)
 		for key, value := range account.Storage {
 			statedb.SetState(addr, key, value)
+		}
+	}
+	// Handle the Turbo related
+	if g.Config != nil && g.Config.Turbo != nil {
+		// init system contract
+		head := block.Header()
+		gInit := &genesisInit{statedb, head, g}
+		for name, initSystemContract := range map[string]func() error{
+			"Staking":       gInit.initStaking,
+			"CommunityPool": gInit.initCommunityPool,
+			"BonusPool":     gInit.initBonusPool,
+			"GenesisLock":   gInit.initGenesisLock,
+		} {
+			if err = initSystemContract(); err != nil {
+				log.Crit("Failed to init system contract", "contract", name, "err", err)
+			}
+		}
+		// Set validoter info
+		if head.Extra, err = gInit.initValidators(); err != nil {
+			log.Crit("Failed to init Validators", "err", err)
 		}
 	}
 	root, err := statedb.Commit(0, false)
@@ -180,7 +204,7 @@ func flushAlloc(ga *types.GenesisAlloc, db ethdb.Database, triedb *triedb.Databa
 	if err != nil {
 		return err
 	}
-	rawdb.WriteGenesisStateSpec(db, blockhash, blob)
+	rawdb.WriteGenesisStateSpec(db, block.Hash(), blob)
 	return nil
 }
 
@@ -422,7 +446,7 @@ func (g *Genesis) IsVerkle() bool {
 
 // ToBlock returns the genesis block according to genesis specification.
 func (g *Genesis) ToBlock() *types.Block {
-	root, err := hashAlloc(&g.Alloc, g.IsVerkle())
+	root, statedb, err := hashAlloc(&g.Alloc, g.IsVerkle())
 	if err != nil {
 		panic(err)
 	}
@@ -453,6 +477,30 @@ func (g *Genesis) ToBlock() *types.Block {
 			head.BaseFee = new(big.Int).SetUint64(params.InitialBaseFee)
 		}
 	}
+
+	// Handle the Turbo related
+	if g.Config != nil && g.Config.Turbo != nil {
+		// init system contract
+		gInit := &genesisInit{statedb, head, g}
+		for name, initSystemContract := range map[string]func() error{
+			"Staking":       gInit.initStaking,
+			"CommunityPool": gInit.initCommunityPool,
+			"BonusPool":     gInit.initBonusPool,
+			"GenesisLock":   gInit.initGenesisLock,
+		} {
+			if err = initSystemContract(); err != nil {
+				log.Crit("Failed to init system contract", "contract", name, "err", err)
+			}
+		}
+		// Set validoter info
+		if head.Extra, err = gInit.initValidators(); err != nil {
+			log.Crit("Failed to init Validators", "err", err)
+		}
+		if head.Root, err = statedb.Commit(0, false); err != nil {
+			panic(err)
+		}
+	}
+
 	var withdrawals []*types.Withdrawal
 	if conf := g.Config; conf != nil {
 		num := big.NewInt(int64(g.Number))
@@ -499,7 +547,7 @@ func (g *Genesis) Commit(db ethdb.Database, triedb *triedb.Database) (*types.Blo
 	// All the checks has passed, flushAlloc the states derived from the genesis
 	// specification as well as the specification itself into the provided
 	// database.
-	if err := flushAlloc(&g.Alloc, db, triedb, block.Hash()); err != nil {
+	if err := flushAlloc(g, db, triedb, block); err != nil {
 		return nil, err
 	}
 	rawdb.WriteTd(db, block.Hash(), block.NumberU64(), block.Difficulty())
@@ -535,12 +583,49 @@ func DefaultGenesisBlock() *Genesis {
 	}
 }
 
+func DefaultTestnetGenesisBlock() *Genesis {
+	return &Genesis{
+		Config:     params.TestnetChainConfig,
+		Timestamp:  0x6579c720,
+		ExtraData:  hexutil.MustDecode("0x00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000"),
+		GasLimit:   0x05f5e100,
+		Difficulty: big.NewInt(1),
+		Alloc:      decodePrealloc(testnetAllocData),
+		Mixhash:    common.Hash{},
+		Validators: []types.ValidatorInfo{
+			types.MakeValidator("0x0000000000000000000000000000000000000001", "0xffffffffffffffffffffffffffffffffffffffff", "0", "1000000", false),
+			types.MakeValidator("0x0000000000000000000000000000000000000002", "0xffffffffffffffffffffffffffffffffffffffff", "0", "1000000", true),
+			types.MakeValidator("0x0000000000000000000000000000000000000003", "0xffffffffffffffffffffffffffffffffffffffff", "40", "1000000", true),
+			types.MakeValidator("0x0000000000000000000000000000000000000004", "0xffffffffffffffffffffffffffffffffffffffff", "60", "1000000", true),
+			types.MakeValidator("0x0000000000000000000000000000000000000005", "0xffffffffffffffffffffffffffffffffffffffff", "80", "1000000", true),
+			types.MakeValidator("0x0000000000000000000000000000000000000006", "0xffffffffffffffffffffffffffffffffffffffff", "100", "1000000", true),
+			types.MakeValidator("0x0000000000000000000000000000000000000007", "0xffffffffffffffffffffffffffffffffffffffff", "100", "1000000", false),
+		},
+	}
+}
+
 // BasicTurboGenesisBlock returns a genesis containing basic allocation for Chais engine,
 func BasicTurboGenesisBlock(config *params.ChainConfig, initialValidators []common.Address, faucet common.Address) *Genesis { //TODO
+	extraVanity := 32
+	extraData := make([]byte, extraVanity+65)
+	alloc := decodePrealloc(basicAllocForTurbo)
+	if (faucet != common.Address{}) {
+		// 100M
+		b, _ := new(big.Int).SetString("100000000000000000000000000", 10)
+		alloc[faucet] = GenesisAccount{Balance: b}
+	}
+	validators := make([]types.ValidatorInfo, 0, len(initialValidators))
+	for _, val := range initialValidators {
+		validators = append(validators, types.ValidatorInfo{val, faucet, big.NewInt(20), big.NewInt(50000), true})
+	}
+	alloc[system.StakingContract].Init.Admin = faucet
 	return &Genesis{
 		Config:     config,
+		ExtraData:  extraData,
 		GasLimit:   0x280de80,
 		Difficulty: big.NewInt(2),
+		Alloc:      alloc,
+		Validators: validators,
 	}
 }
 
@@ -613,9 +698,27 @@ func DeveloperGenesisBlock(gasLimit uint64, faucet *common.Address) *Genesis {
 }
 
 func decodePrealloc(data string) types.GenesisAlloc {
+	type locked struct {
+		UserAddress  *big.Int
+		TypeId       *big.Int
+		LockedAmount *big.Int
+		LockedTime   *big.Int
+		PeriodAmount *big.Int
+	}
+
+	type initArgs struct {
+		Admin           *big.Int
+		FirstLockPeriod *big.Int
+		ReleasePeriod   *big.Int
+		ReleaseCnt      *big.Int
+		RuEpoch         *big.Int
+		PeriodTime      *big.Int
+		LockedAccounts  []locked
+	}
 	var p []struct {
 		Addr    *big.Int
 		Balance *big.Int
+		Init    *initArgs
 		Misc    *struct {
 			Nonce uint64
 			Code  []byte
@@ -631,6 +734,29 @@ func decodePrealloc(data string) types.GenesisAlloc {
 	ga := make(types.GenesisAlloc, len(p))
 	for _, account := range p {
 		acc := types.Account{Balance: account.Balance}
+		if account.Init != nil {
+			acc.Init = &types.Init{
+				Admin:           common.BigToAddress(account.Init.Admin),
+				FirstLockPeriod: account.Init.FirstLockPeriod,
+				ReleasePeriod:   account.Init.ReleasePeriod,
+				ReleaseCnt:      account.Init.ReleaseCnt,
+				RuEpoch:         account.Init.RuEpoch,
+				PeriodTime:      account.Init.PeriodTime,
+			}
+			if len(account.Init.LockedAccounts) > 0 {
+				acc.Init.LockedAccounts = make([]types.LockedAccount, 0, len(account.Init.LockedAccounts))
+				for _, locked := range account.Init.LockedAccounts {
+					acc.Init.LockedAccounts = append(acc.Init.LockedAccounts,
+						types.LockedAccount{
+							UserAddress:  common.BigToAddress(locked.UserAddress),
+							TypeId:       locked.TypeId,
+							LockedAmount: locked.LockedAmount,
+							LockedTime:   locked.LockedTime,
+							PeriodAmount: locked.PeriodAmount,
+						})
+				}
+			}
+		}
 		if account.Misc != nil {
 			acc.Nonce = account.Misc.Nonce
 			acc.Code = account.Misc.Code
