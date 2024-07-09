@@ -116,7 +116,7 @@ func ReadGenesis(db ethdb.Database) (*Genesis, error) {
 }
 
 // hashAlloc computes the state root according to the genesis specification.
-func hashAlloc(ga *types.GenesisAlloc, isVerkle bool) (common.Hash, *state.StateDB, error) {
+func hashAlloc(ga *types.GenesisAlloc, isVerkle bool) (common.Hash, state.Database, error) {
 	// If a genesis-time verkle trie is requested, create a trie config
 	// with the verkle trie enabled so that the tree can be initialized
 	// as such.
@@ -145,7 +145,7 @@ func hashAlloc(ga *types.GenesisAlloc, isVerkle bool) (common.Hash, *state.State
 		}
 	}
 	root, err := statedb.Commit(0, false)
-	return root, statedb, err
+	return root, db, err
 }
 
 // flushAlloc is very similar with hash, but the main difference is all the generated
@@ -446,7 +446,7 @@ func (g *Genesis) IsVerkle() bool {
 
 // ToBlock returns the genesis block according to genesis specification.
 func (g *Genesis) ToBlock() *types.Block {
-	root, statedb, err := hashAlloc(&g.Alloc, g.IsVerkle())
+	root, db, err := hashAlloc(&g.Alloc, g.IsVerkle())
 	if err != nil {
 		panic(err)
 	}
@@ -477,9 +477,12 @@ func (g *Genesis) ToBlock() *types.Block {
 			head.BaseFee = new(big.Int).SetUint64(params.InitialBaseFee)
 		}
 	}
-
 	// Handle the Turbo related
 	if g.Config != nil && g.Config.Turbo != nil {
+		statedb, err := state.New(head.Root, db, nil)
+		if err != nil {
+			panic(err)
+		}
 		// init system contract
 		gInit := &genesisInit{statedb, head, g}
 		for name, initSystemContract := range map[string]func() error{
@@ -707,18 +710,17 @@ func decodePrealloc(data string) types.GenesisAlloc {
 	}
 
 	type initArgs struct {
-		Admin           *big.Int
-		FirstLockPeriod *big.Int
-		ReleasePeriod   *big.Int
-		ReleaseCnt      *big.Int
-		RuEpoch         *big.Int
-		PeriodTime      *big.Int
-		LockedAccounts  []locked
+		Admin           *big.Int `rlp:"optional"`
+		FirstLockPeriod *big.Int `rlp:"optional"`
+		ReleasePeriod   *big.Int `rlp:"optional"`
+		ReleaseCnt      *big.Int `rlp:"optional"`
+		RuEpoch         *big.Int `rlp:"optional"`
+		PeriodTime      *big.Int `rlp:"optional"`
+		LockedAccounts  []locked `rlp:"optional"`
 	}
 	var p []struct {
 		Addr    *big.Int
 		Balance *big.Int
-		Init    *initArgs
 		Misc    *struct {
 			Nonce uint64
 			Code  []byte
@@ -726,6 +728,7 @@ func decodePrealloc(data string) types.GenesisAlloc {
 				Key common.Hash
 				Val common.Hash
 			}
+			Init *initArgs `rlp:"optional"`
 		} `rlp:"optional"`
 	}
 	if err := rlp.NewStream(strings.NewReader(data), 0).Decode(&p); err != nil {
@@ -734,29 +737,6 @@ func decodePrealloc(data string) types.GenesisAlloc {
 	ga := make(types.GenesisAlloc, len(p))
 	for _, account := range p {
 		acc := types.Account{Balance: account.Balance}
-		if account.Init != nil {
-			acc.Init = &types.Init{
-				Admin:           common.BigToAddress(account.Init.Admin),
-				FirstLockPeriod: account.Init.FirstLockPeriod,
-				ReleasePeriod:   account.Init.ReleasePeriod,
-				ReleaseCnt:      account.Init.ReleaseCnt,
-				RuEpoch:         account.Init.RuEpoch,
-				PeriodTime:      account.Init.PeriodTime,
-			}
-			if len(account.Init.LockedAccounts) > 0 {
-				acc.Init.LockedAccounts = make([]types.LockedAccount, 0, len(account.Init.LockedAccounts))
-				for _, locked := range account.Init.LockedAccounts {
-					acc.Init.LockedAccounts = append(acc.Init.LockedAccounts,
-						types.LockedAccount{
-							UserAddress:  common.BigToAddress(locked.UserAddress),
-							TypeId:       locked.TypeId,
-							LockedAmount: locked.LockedAmount,
-							LockedTime:   locked.LockedTime,
-							PeriodAmount: locked.PeriodAmount,
-						})
-				}
-			}
-		}
 		if account.Misc != nil {
 			acc.Nonce = account.Misc.Nonce
 			acc.Code = account.Misc.Code
@@ -764,6 +744,32 @@ func decodePrealloc(data string) types.GenesisAlloc {
 			acc.Storage = make(map[common.Hash]common.Hash)
 			for _, slot := range account.Misc.Slots {
 				acc.Storage[slot.Key] = slot.Val
+			}
+
+			if account.Misc.Init != nil {
+				acc.Init = &types.Init{
+					FirstLockPeriod: account.Misc.Init.FirstLockPeriod,
+					ReleasePeriod:   account.Misc.Init.ReleasePeriod,
+					ReleaseCnt:      account.Misc.Init.ReleaseCnt,
+					RuEpoch:         account.Misc.Init.RuEpoch,
+					PeriodTime:      account.Misc.Init.PeriodTime,
+				}
+				if account.Misc.Init.Admin != nil {
+					acc.Init.Admin = common.BigToAddress(account.Misc.Init.Admin)
+				}
+				if len(account.Misc.Init.LockedAccounts) > 0 {
+					acc.Init.LockedAccounts = make([]types.LockedAccount, 0, len(account.Misc.Init.LockedAccounts))
+					for _, locked := range account.Misc.Init.LockedAccounts {
+						acc.Init.LockedAccounts = append(acc.Init.LockedAccounts,
+							types.LockedAccount{
+								UserAddress:  common.BigToAddress(locked.UserAddress),
+								TypeId:       locked.TypeId,
+								LockedAmount: locked.LockedAmount,
+								LockedTime:   locked.LockedTime,
+								PeriodAmount: locked.PeriodAmount,
+							})
+					}
+				}
 			}
 		}
 		ga[common.BigToAddress(account.Addr)] = acc

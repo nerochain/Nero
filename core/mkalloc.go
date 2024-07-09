@@ -48,6 +48,26 @@ type allocItemMisc struct {
 	Nonce uint64
 	Code  []byte
 	Slots []allocItemStorageItem
+	Init  *initArgs `rlp:"optional"`
+}
+
+type initArgs struct {
+	Admin           *big.Int        `rlp:"optional"`
+	FirstLockPeriod *big.Int        `rlp:"optional"`
+	ReleasePeriod   *big.Int        `rlp:"optional"`
+	ReleaseCnt      *big.Int        `rlp:"optional"`
+	RuEpoch         *big.Int        `rlp:"optional"`
+	PeriodTime      *big.Int        `rlp:"optional"`
+	LockedAccounts  []lockedAccount `rlp:"optional"`
+}
+
+// LockedAccount represents the info of the locked account
+type lockedAccount struct {
+	UserAddress  *big.Int
+	TypeId       *big.Int
+	LockedAmount *big.Int
+	LockedTime   *big.Int
+	PeriodAmount *big.Int
 }
 
 type allocItemStorageItem struct {
@@ -59,7 +79,7 @@ func makelist(g *core.Genesis) []allocItem {
 	items := make([]allocItem, 0, len(g.Alloc))
 	for addr, account := range g.Alloc {
 		var misc *allocItemMisc
-		if len(account.Storage) > 0 || len(account.Code) > 0 || account.Nonce != 0 {
+		if len(account.Storage) > 0 || len(account.Code) > 0 || account.Nonce != 0 || account.Init != nil {
 			misc = &allocItemMisc{
 				Nonce: account.Nonce,
 				Code:  account.Code,
@@ -71,6 +91,23 @@ func makelist(g *core.Genesis) []allocItem {
 			slices.SortFunc(misc.Slots, func(a, b allocItemStorageItem) int {
 				return a.Key.Cmp(b.Key)
 			})
+			if account.Init != nil {
+				misc.Init = &initArgs{
+					Admin:           new(big.Int).SetBytes(account.Init.Admin.Bytes()),
+					FirstLockPeriod: account.Init.FirstLockPeriod,
+					ReleasePeriod:   account.Init.ReleasePeriod,
+					ReleaseCnt:      account.Init.ReleaseCnt,
+					RuEpoch:         account.Init.RuEpoch,
+					PeriodTime:      account.Init.PeriodTime,
+				}
+				if len(account.Init.LockedAccounts) > 0 {
+					misc.Init.LockedAccounts = make([]lockedAccount, 0, len(account.Init.LockedAccounts))
+					for _, locked := range account.Init.LockedAccounts {
+						misc.Init.LockedAccounts = append(misc.Init.LockedAccounts, lockedAccount{new(big.Int).SetBytes(locked.UserAddress.Bytes()),
+							locked.TypeId, locked.LockedAmount, locked.LockedTime, locked.PeriodAmount})
+					}
+				}
+			}
 		}
 		bigAddr := new(big.Int).SetBytes(addr.Bytes())
 		items = append(items, allocItem{bigAddr, account.Balance, misc})

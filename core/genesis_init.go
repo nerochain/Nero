@@ -132,11 +132,11 @@ func (env *genesisInit) callContract(contract common.Address, method string, arg
 func (env *genesisInit) initStaking() error {
 	contract, ok := env.genesis.Alloc[system.StakingContract]
 	if !ok {
-		return errors.New("Staking Contract is missing in genesis!")
+		return errors.New("staking contract is missing in genesis")
 	}
 
 	if len(env.genesis.Validators) <= 0 {
-		return errors.New("validators are missing in genesis!")
+		return errors.New("validators are missing in genesis")
 	}
 
 	totalValidatorStake := big.NewInt(0)

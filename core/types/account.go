@@ -29,6 +29,9 @@ import (
 )
 
 //go:generate go run github.com/fjl/gencodec -type Account -field-override accountMarshaling -out gen_account.go
+//go:generate go run github.com/fjl/gencodec -type Init -field-override initMarshaling -out gen_init.go
+//go:generate go run github.com/fjl/gencodec -type LockedAccount -field-override lockedAccountMarshaling -out gen_locked_account.go
+//go:generate go run github.com/fjl/gencodec -type ValidatorInfo -field-override validatorInfoMarshaling -out gen_validator_info.go
 
 // Account represents an Ethereum account and its attached data.
 // This type is used to specify accounts in the genesis block state, and
