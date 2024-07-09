@@ -20,12 +20,14 @@ import (
 	"bytes"
 	"encoding/json"
 	"math/big"
+	"os"
 	"reflect"
 	"testing"
 
 	"github.com/davecgh/go-spew/spew"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/consensus/ethash"
+	"github.com/ethereum/go-ethereum/contracts/system"
 	"github.com/ethereum/go-ethereum/core/rawdb"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/core/vm"
@@ -33,6 +35,7 @@ import (
 	"github.com/ethereum/go-ethereum/params"
 	"github.com/ethereum/go-ethereum/triedb"
 	"github.com/ethereum/go-ethereum/triedb/pathdb"
+	"github.com/stretchr/testify/assert"
 )
 
 func TestInvalidCliqueConfig(t *testing.T) {
@@ -255,6 +258,103 @@ func TestReadWriteGenesisAlloc(t *testing.T) {
 			t.Fatal("Unexpected account")
 		}
 	}
+}
+
+func TestGenesisUnmarshal(t *testing.T) {
+	file, err := os.Open("testdata/test-genesis.json")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer file.Close()
+	genesis := new(Genesis)
+	if err := json.NewDecoder(file).Decode(genesis); err != nil {
+		t.Fatalf("invalid genesis file: %v", err)
+	}
+
+	assert.Equal(t, genesis.configOrDefault(common.Hash{}).Turbo,
+		&params.TurboConfig{Period: 3, Epoch: 200, AttestationDelay: 2})
+
+	stakingInit := genesis.Alloc[system.StakingContract].Init
+	assert.Equal(t, stakingInit, &types.Init{
+		Admin:           common.HexToAddress("0x352BbF453fFdcba6b126a73eD684260D7968dDc8"),
+		FirstLockPeriod: big.NewInt(63072000),
+		ReleasePeriod:   big.NewInt(2592000),
+		ReleaseCnt:      big.NewInt(48),
+		RuEpoch:         big.NewInt(28800),
+	})
+
+	genesisLockInit := genesis.Alloc[system.GenesisLockContract].Init
+	assert.Equal(t, big.NewInt(2592000), genesisLockInit.PeriodTime)
+	assert.Equal(t, genesisLockInit.LockedAccounts[0], types.LockedAccount{
+		UserAddress:  common.HexToAddress("0x2FA024cA813449D315d71D49BdDF7c175C036729"),
+		TypeId:       big.NewInt(1),
+		LockedAmount: fromGwei(1000000000000),
+		LockedTime:   big.NewInt(0), PeriodAmount: big.NewInt(48),
+	})
+
+	assert.Equal(t, genesis.Validators[0], types.ValidatorInfo{
+		Address:          common.HexToAddress("0x8Cc5A1a0802DB41DB826C2FcB72423744338DcB0"),
+		Manager:          common.HexToAddress("0x352BbF453fFdcba6b126a73eD684260D7968dDc8"),
+		Rate:             big.NewInt(20),
+		Stake:            big.NewInt(350000),
+		AcceptDelegation: true,
+	})
+
+	eoa := genesis.Alloc[common.HexToAddress("0x352BbF453fFdcba6b126a73eD684260D7968dDc8")]
+	assert.Nil(t, eoa.Code)
+	assert.Nil(t, eoa.Init)
+}
+
+func TestDecodePrealloc(t *testing.T) {
+	file, err := os.Open("testdata/test-genesis.json")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer file.Close()
+	genesis := new(Genesis)
+	if err := json.NewDecoder(file).Decode(genesis); err != nil {
+		t.Fatalf("invalid genesis file: %v", err)
+	}
+	allocExpect := genesis.Alloc
+
+	alloc := decodePrealloc(basicAllocForTurbo)
+	for addr, account := range alloc {
+		accountExpect := allocExpect[addr]
+		assert.NotNil(t, accountExpect)
+		if accountExpect.Init != nil {
+			assert.Equal(t, accountExpect.Init.Admin, account.Init.Admin, addr)
+			assert.Equal(t, accountExpect.Init.LockedAccounts, account.Init.LockedAccounts, addr)
+			if accountExpect.Init.FirstLockPeriod != nil {
+				assert.Equal(t, accountExpect.Init.FirstLockPeriod, account.Init.FirstLockPeriod, addr)
+			}
+			if accountExpect.Init.PeriodTime != nil {
+				assert.Equal(t, accountExpect.Init.PeriodTime, account.Init.PeriodTime, addr)
+			}
+			if accountExpect.Init.ReleaseCnt != nil {
+				assert.Equal(t, accountExpect.Init.ReleaseCnt, account.Init.ReleaseCnt, addr)
+			}
+			if accountExpect.Init.ReleasePeriod != nil {
+				assert.Equal(t, accountExpect.Init.ReleasePeriod, account.Init.ReleasePeriod, addr)
+			}
+			if accountExpect.Init.RuEpoch != nil {
+				assert.Equal(t, accountExpect.Init.RuEpoch, account.Init.RuEpoch, addr)
+			}
+		}
+	}
+}
+
+func TestGenesisInit(t *testing.T) {
+	file, err := os.Open("testdata/test-genesis.json")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer file.Close()
+	genesis := new(Genesis)
+	if err := json.NewDecoder(file).Decode(genesis); err != nil {
+		t.Fatalf("invalid genesis file: %v", err)
+	}
+	block := genesis.ToBlock()
+	t.Log(block.Hash())
 }
 
 func newDbConfig(scheme string) *triedb.Config {
