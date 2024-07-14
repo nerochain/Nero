@@ -1373,3 +1373,60 @@ func TestStorageDirtiness(t *testing.T) {
 	state.RevertToSnapshot(snap)
 	checkDirty(common.Hash{0x1}, common.Hash{0x1}, true)
 }
+
+func TestErase(t *testing.T) {
+	// Create an initial state with a single contract
+	db := NewDatabase(rawdb.NewMemoryDatabase())
+	state, _ := New(common.Hash{}, db, nil)
+
+	addr := common.BytesToAddress([]byte("so"))
+	state.SetBalance(addr, uint256.NewInt(1), tracing.BalanceChangeTouchAccount)
+	skey := common.HexToHash("aaa")
+	sval := common.HexToHash("bbb")
+
+	state.SetCode(addr, []byte("hello")) // Change an external metadata
+	state.SetState(addr, skey, sval)     // Change the storage trie
+
+	root, _ := state.Commit(0, false)
+	state, _ = New(root, db, nil)
+
+	// Simulate erase and then revert
+	id := state.Snapshot()
+	state.Erase(addr)
+	state.RevertToSnapshot(id)
+	root, _ = state.Commit(0, true)
+	state, _ = New(root, db, nil)
+
+	obj := state.getStateObject(addr)
+	if code := obj.Code(); !bytes.Equal(code, []byte("hello")) {
+		t.Fatal("RevertToSnapshot failed after erase, code mismatch")
+	}
+	if val := obj.GetState(skey); val != sval {
+		t.Fatal("RevertToSnapshot failed after erase, storage mismatch")
+	}
+
+	state.Erase(addr)
+	// Commit the entire state and make sure we don't crash and have the correct state
+	root, _ = state.Commit(0, true)
+	state, _ = New(root, db, nil)
+
+	obj = state.getStateObject(addr)
+	if obj == nil {
+		t.Fatal("erase should not delete the account")
+	}
+	if code := obj.Code(); len(code) > 0 {
+		t.Fatal("erase failed to clear the code")
+	}
+	if val := obj.GetState(skey); (val != common.Hash{}) {
+		t.Fatal("erase not clear the storage")
+	}
+	if obj.data.Root != types.EmptyRootHash {
+		t.Fatal("erase not clear the storage")
+	}
+	if !bytes.Equal(obj.CodeHash(), types.EmptyCodeHash[:]) {
+		t.Fatal("erase failed to clear the code hash")
+	}
+	if obj.Balance().Uint64() != uint64(1) {
+		t.Fatal("erase should not change balance")
+	}
+}

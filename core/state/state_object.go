@@ -489,6 +489,11 @@ func (s *stateObject) AddBalance(amount *uint256.Int, reason tracing.BalanceChan
 // It is used to remove funds from the origin account of a transfer.
 func (s *stateObject) SubBalance(amount *uint256.Int, reason tracing.BalanceChangeReason) {
 	if amount.IsZero() {
+		// We must check emptiness for the objects such that
+		// the account clearing (0,0,0 objects) can take effect.
+		if s.empty() {
+			s.touch()
+		}
 		return
 	}
 	s.SetBalance(new(uint256.Int).Sub(s.Balance(), amount), reason)
