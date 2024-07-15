@@ -642,14 +642,13 @@ func (c *Turbo) Finalize(chain consensus.ChainHeaderReader, header *types.Header
 // FinalizeAndAssemble implements consensus.Engine, ensuring no uncles are set,
 // nor block rewards given, and returns the final block.
 func (c *Turbo) FinalizeAndAssemble(chain consensus.ChainHeaderReader, header *types.Header, state *state.StateDB, body *types.Body, receipts []*types.Receipt) (b *types.Block, rs []*types.Receipt, err error) {
-	txs := body.Transactions
 	defer func() {
 		if err != nil {
 			log.Warn("FinalizeAndAssemble failed", "err", err)
 		}
 	}()
 	// Preparing jobs before finalize
-	if err := c.prepareFinalize(chain, header, state, &txs, &receipts, nil, nil, true); err != nil {
+	if err := c.prepareFinalize(chain, header, state, &body.Transactions, &receipts, nil, nil, true); err != nil {
 		panic(err)
 	}
 	// No block rewards in PoS, so the state remains as is and uncles are dropped
@@ -657,7 +656,7 @@ func (c *Turbo) FinalizeAndAssemble(chain consensus.ChainHeaderReader, header *t
 	header.UncleHash = types.CalcUncleHash(nil)
 
 	// Assemble and return the final block for sealing
-	return types.NewBlock(header, &types.Body{Transactions: body.Transactions}, receipts, new(trie.Trie)), receipts, nil
+	return types.NewBlock(header, &types.Body{Transactions: body.Transactions}, receipts, trie.NewStackTrie(nil)), receipts, nil
 
 }
 

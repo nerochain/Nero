@@ -31,6 +31,10 @@ import (
 	"github.com/ethereum/go-ethereum/params"
 )
 
+var PreservedAddress = map[common.Address]interface{}{ // System preserved addresses
+	consensus.FeeRecoder: nil,
+}
+
 // StateProcessor is a basic Processor, which takes care of transitioning
 // state from one point to another.
 //
@@ -59,7 +63,7 @@ func NewStateProcessor(config *params.ChainConfig, bc *BlockChain, engine consen
 // transactions failed to execute due to insufficient gas it will return an error.
 func (p *StateProcessor) Process(block *types.Block, statedb *state.StateDB, cfg vm.Config) (types.Receipts, []*types.Log, uint64, error) {
 	var (
-		receipts    types.Receipts
+		receipts    = make([]*types.Receipt, 0)
 		usedGas     = new(uint64)
 		header      = block.Header()
 		blockHash   = block.Hash()
@@ -80,8 +84,44 @@ func (p *StateProcessor) Process(block *types.Block, statedb *state.StateDB, cfg
 	if beaconRoot := block.BeaconRoot(); beaconRoot != nil {
 		ProcessBeaconBlockRoot(*beaconRoot, vmenv, statedb)
 	}
+
+	turboEngine, isTurboEngine := p.engine.(consensus.TurboEngine)
+	if isTurboEngine {
+		if err := turboEngine.PreHandle(p.bc, header, statedb); err != nil {
+			return nil, nil, 0, err
+		}
+		vmenv.Context.AccessFilter = turboEngine.CreateEvmAccessFilter(header, statedb)
+	}
+
 	// Iterate over and process the individual transactions
+	commonTxs := make([]*types.Transaction, 0, len(block.Transactions()))
+	punishTxs := make([]*types.Transaction, 0)
+	proposalTxs := make([]*types.Transaction, 0)
 	for i, tx := range block.Transactions() {
+		if IsPreserved(tx.To()) {
+			return nil, nil, 0, fmt.Errorf("send tx to system preserved address(%v): tx %d [%v]", *tx.To(), i, tx.Hash())
+		}
+		if isTurboEngine {
+			sender, err := types.Sender(signer, tx)
+			if err != nil {
+				return nil, nil, 0, err
+			}
+			if err = turboEngine.ExtraValidateOfTx(sender, tx, header); err != nil {
+				return nil, nil, 0, err
+			}
+
+			if ok := turboEngine.IsDoubleSignPunishTransaction(sender, tx, header); ok {
+				punishTxs = append(punishTxs, tx)
+				continue
+			}
+			if ok := turboEngine.IsSysTransaction(sender, tx, header); ok {
+				proposalTxs = append(proposalTxs, tx)
+				continue
+			}
+			if err = turboEngine.FilterTx(sender, tx, header, statedb); err != nil {
+				return nil, nil, 0, err
+			}
+		}
 		msg, err := TransactionToMessage(tx, signer, header.BaseFee)
 		if err != nil {
 			return nil, nil, 0, fmt.Errorf("could not apply tx %d [%v]: %w", i, tx.Hash().Hex(), err)
@@ -94,6 +134,7 @@ func (p *StateProcessor) Process(block *types.Block, statedb *state.StateDB, cfg
 		}
 		receipts = append(receipts, receipt)
 		allLogs = append(allLogs, receipt.Logs...)
+		commonTxs = append(commonTxs, tx)
 	}
 	// Fail if Shanghai not enabled and len(withdrawals) is non-zero.
 	withdrawals := block.Withdrawals()
@@ -101,7 +142,9 @@ func (p *StateProcessor) Process(block *types.Block, statedb *state.StateDB, cfg
 		return nil, nil, 0, errors.New("withdrawals before shanghai")
 	}
 	// Finalize the block, applying any consensus engine specific extras (e.g. block rewards)
-	p.engine.Finalize(p.bc, header, statedb, block.Body(), nil, nil, nil)
+	if err := p.engine.Finalize(p.bc, header, statedb, &types.Body{Transactions: commonTxs}, &receipts, punishTxs, proposalTxs); err != nil {
+		return nil, nil, 0, err
+	}
 
 	return receipts, allLogs, *usedGas, nil
 }
@@ -208,4 +251,13 @@ func ProcessBeaconBlockRoot(beaconRoot common.Hash, vmenv *vm.EVM, statedb *stat
 	statedb.AddAddressToAccessList(params.BeaconRootsAddress)
 	_, _, _ = vmenv.Call(vm.AccountRef(msg.From), *msg.To, msg.Data, 30_000_000, common.U2560)
 	statedb.Finalise(true)
+}
+
+// IsPreserved checks whether the address is a system preserved one
+func IsPreserved(address *common.Address) bool {
+	if address == nil {
+		return false
+	}
+	_, preserved := PreservedAddress[*address]
+	return preserved
 }
