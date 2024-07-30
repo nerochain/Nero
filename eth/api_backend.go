@@ -67,7 +67,7 @@ func (b *EthAPIBackend) SetHead(number uint64) {
 func (b *EthAPIBackend) HeaderByNumber(ctx context.Context, number rpc.BlockNumber) (*types.Header, error) {
 	// Pending block is only known by the miner
 	if number == rpc.PendingBlockNumber {
-		block, _, _ := b.eth.miner.Pending()
+		block := b.eth.miner.PendingBlock()
 		if block == nil {
 			return nil, errors.New("pending block is not available")
 		}
@@ -118,7 +118,7 @@ func (b *EthAPIBackend) HeaderByHash(ctx context.Context, hash common.Hash) (*ty
 func (b *EthAPIBackend) BlockByNumber(ctx context.Context, number rpc.BlockNumber) (*types.Block, error) {
 	// Pending block is only known by the miner
 	if number == rpc.PendingBlockNumber {
-		block, _, _ := b.eth.miner.Pending()
+		block := b.eth.miner.PendingBlock()
 		if block == nil {
 			return nil, errors.New("pending block is not available")
 		}
@@ -183,13 +183,14 @@ func (b *EthAPIBackend) BlockByNumberOrHash(ctx context.Context, blockNrOrHash r
 }
 
 func (b *EthAPIBackend) Pending() (*types.Block, types.Receipts, *state.StateDB) {
-	return b.eth.miner.Pending()
+	block, state := b.eth.miner.Pending()
+	return block, b.eth.blockchain.GetReceiptsByHash(block.Hash()), state
 }
 
 func (b *EthAPIBackend) StateAndHeaderByNumber(ctx context.Context, number rpc.BlockNumber) (*state.StateDB, *types.Header, error) {
 	// Pending state is only known by the miner
 	if number == rpc.PendingBlockNumber {
-		block, _, state := b.eth.miner.Pending()
+		block, state := b.eth.miner.Pending()
 		if block == nil || state == nil {
 			return nil, nil, errors.New("pending state is not available")
 		}

@@ -958,7 +958,7 @@ func testQueueGlobalLimiting(t *testing.T, nolocals bool) {
 	for i := uint64(0); i < 3*config.GlobalQueue; i++ {
 		txs = append(txs, transaction(i+1, 100000, local))
 	}
-	pool.addLocals(txs)
+	pool.AddLocals(txs)
 
 	// If locals are disabled, the previous eviction algorithm should apply here too
 	if nolocals {
@@ -2609,7 +2609,7 @@ func benchmarkBatchInsert(b *testing.B, size int, local bool) {
 	b.ResetTimer()
 	for _, batch := range batches {
 		if local {
-			pool.addLocals(batch)
+			pool.AddLocals(batch)
 		} else {
 			pool.addRemotes(batch)
 		}

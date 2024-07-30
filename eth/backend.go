@@ -28,6 +28,8 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/consensus"
+	"github.com/ethereum/go-ethereum/consensus/clique"
+	"github.com/ethereum/go-ethereum/consensus/turbo"
 	"github.com/ethereum/go-ethereum/core"
 	"github.com/ethereum/go-ethereum/core/bloombits"
 	"github.com/ethereum/go-ethereum/core/rawdb"
@@ -87,8 +89,9 @@ type Ethereum struct {
 
 	APIBackend *EthAPIBackend
 
-	miner    *miner.Miner
-	gasPrice *big.Int
+	miner     *miner.Miner
+	gasPrice  *big.Int
+	etherbase common.Address
 
 	networkID     uint64
 	netRPCService *ethapi.NetAPI
@@ -256,7 +259,7 @@ func New(stack *node.Node, config *ethconfig.Config) (*Ethereum, error) {
 		return nil, err
 	}
 
-	eth.miner = miner.New(eth, config.Miner, eth.engine)
+	eth.miner = miner.New(eth, &config.Miner, chainConfig, eth.EventMux(), eth.engine, eth.isLocalBlock)
 	eth.miner.SetExtra(makeExtraData(config.Miner.ExtraData))
 
 	eth.APIBackend = &EthAPIBackend{stack.Config().ExtRPCEnabled(), stack.Config().AllowUnprotectedTxs, eth, nil}
@@ -344,6 +347,116 @@ func (s *Ethereum) ResetWithGenesisBlock(gb *types.Block) {
 	s.blockchain.ResetWithGenesisBlock(gb)
 }
 
+func (s *Ethereum) Etherbase() (eb common.Address, err error) {
+	s.lock.RLock()
+	etherbase := s.etherbase
+	s.lock.RUnlock()
+
+	if etherbase != (common.Address{}) {
+		return etherbase, nil
+	}
+	if wallets := s.AccountManager().Wallets(); len(wallets) > 0 {
+		if accounts := wallets[0].Accounts(); len(accounts) > 0 {
+			etherbase := accounts[0].Address
+
+			s.lock.Lock()
+			s.etherbase = etherbase
+			s.lock.Unlock()
+
+			log.Info("Etherbase automatically configured", "address", etherbase)
+			return etherbase, nil
+		}
+	}
+	return common.Address{}, fmt.Errorf("etherbase must be explicitly specified")
+}
+
+// isLocalBlock checks whether the specified block is mined
+// by local miner accounts.
+//
+// We regard two types of accounts as local miner account: etherbase
+// and accounts specified via `txpool.locals` flag.
+func (s *Ethereum) isLocalBlock(block *types.Block) bool {
+	author, err := s.engine.Author(block.Header())
+	if err != nil {
+		log.Warn("Failed to retrieve block author", "number", block.NumberU64(), "hash", block.Hash(), "err", err)
+		return false
+	}
+	// Check whether the given address is etherbase.
+	s.lock.RLock()
+	etherbase := s.etherbase
+	s.lock.RUnlock()
+	if author == etherbase {
+		return true
+	}
+	// Check whether the given address is specified by `txpool.local`
+	// CLI flag.
+	for _, account := range s.config.TxPool.Locals {
+		if account == author {
+			return true
+		}
+	}
+	return false
+}
+
+// shouldPreserve checks whether we should preserve the given block
+// during the chain reorg depending on whether the author of block
+// is a local account.
+func (s *Ethereum) shouldPreserve(block *types.Block) bool {
+	// The reason we need to disable the self-reorg preserving for clique
+	// is it can be probable to introduce a deadlock.
+	//
+	// e.g. If there are 7 available signers
+	//
+	// r1   A
+	// r2     B
+	// r3       C
+	// r4         D
+	// r5   A      [X] F G
+	// r6    [X]
+	//
+	// In the round5, the inturn signer E is offline, so the worst case
+	// is A, F and G sign the block of round5 and reject the block of opponents
+	// and in the round6, the last available signer B is offline, the whole
+	// network is stuck.
+	if _, ok := s.engine.(*clique.Clique); ok {
+		return false
+	}
+	if _, ok := s.engine.(*turbo.Turbo); ok {
+		return false
+	}
+	return s.isLocalBlock(block)
+}
+
+// SetEtherbase sets the mining reward address.
+func (s *Ethereum) SetEtherbase(etherbase common.Address) {
+	s.lock.Lock()
+	s.etherbase = etherbase
+	s.lock.Unlock()
+
+	s.miner.SetEtherbase(etherbase)
+}
+
+func (s *Ethereum) StartAttestation() {
+	if s.IsMining() {
+		if c, ok := s.engine.(*turbo.Turbo); ok {
+			if c.AttestationStatus() == types.AttestationStop {
+				c.StartAttestation()
+			}
+		}
+	}
+}
+
+func (s *Ethereum) StopAttestation() {
+	if s.IsMining() {
+		if c, ok := s.engine.(*turbo.Turbo); ok {
+			if c.AttestationStatus() == types.AttestationStart {
+				c.StopAttestation()
+			}
+		}
+	}
+}
+
+func (s *Ethereum) IsMining() bool      { return s.miner.Mining() }
 func (s *Ethereum) Miner() *miner.Miner { return s.miner }
 
 func (s *Ethereum) AccountManager() *accounts.Manager  { return s.accountManager }
@@ -358,6 +471,7 @@ func (s *Ethereum) Synced() bool                       { return s.handler.synced
 func (s *Ethereum) SetSynced()                         { s.handler.enableSyncedFeatures() }
 func (s *Ethereum) ArchiveMode() bool                  { return s.config.NoPruning }
 func (s *Ethereum) BloomIndexer() *core.ChainIndexer   { return s.bloomIndexer }
+func (s *Ethereum) Config() *ethconfig.Config          { return s.config }
 
 // Protocols returns all the currently configured
 // network protocols to start.

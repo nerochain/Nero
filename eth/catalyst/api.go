@@ -33,7 +33,7 @@ import (
 	"github.com/ethereum/go-ethereum/eth/downloader"
 	"github.com/ethereum/go-ethereum/internal/version"
 	"github.com/ethereum/go-ethereum/log"
-	"github.com/ethereum/go-ethereum/miner"
+	"github.com/ethereum/go-ethereum/miner2"
 	"github.com/ethereum/go-ethereum/node"
 	"github.com/ethereum/go-ethereum/params"
 	"github.com/ethereum/go-ethereum/params/forks"
@@ -359,7 +359,7 @@ func (api *ConsensusAPI) forkchoiceUpdated(update engine.ForkchoiceStateV1, payl
 	// sealed by the beacon client. The payload will be requested later, and we
 	// will replace it arbitrarily many times in between.
 	if payloadAttributes != nil {
-		args := &miner.BuildPayloadArgs{
+		args := &miner2.BuildPayloadArgs{
 			Parent:       update.HeadBlockHash,
 			Timestamp:    payloadAttributes.Timestamp,
 			FeeRecipient: payloadAttributes.SuggestedFeeRecipient,
@@ -387,7 +387,8 @@ func (api *ConsensusAPI) forkchoiceUpdated(update engine.ForkchoiceStateV1, payl
 				return valid(nil), engine.InvalidPayloadAttributes.With(err)
 			}
 		}
-		payload, err := api.eth.Miner().BuildPayload(args)
+		payload, err := BuildMiner2(api.eth).BuildPayload(args)
+
 		if err != nil {
 			log.Error("Failed to build payload", "err", err)
 			return valid(nil), engine.InvalidPayloadAttributes.With(err)
@@ -895,4 +896,17 @@ func getBody(block *types.Block) *engine.ExecutionPayloadBodyV1 {
 		TransactionData: txs,
 		Withdrawals:     withdrawals,
 	}
+}
+
+func BuildMiner2(eth *eth.Ethereum) *miner2.Miner {
+	config := eth.Config().Miner
+	config2 := &miner2.Config{
+		Etherbase:           config.Etherbase,
+		PendingFeeRecipient: config.Etherbase,
+		ExtraData:           config.ExtraData,
+		GasCeil:             config.GasCeil,
+		GasPrice:            config.GasPrice,
+		Recommit:            config.Recommit,
+	}
+	return miner2.New(eth, *config2, eth.Engine())
 }

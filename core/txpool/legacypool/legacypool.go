@@ -316,7 +316,7 @@ func (pool *LegacyPool) Init(gasTip uint64, head *types.Header, reserve txpool.A
 
 	// If local transactions and journaling is enabled, load from disk
 	if pool.journal != nil {
-		if err := pool.journal.load(pool.addLocals); err != nil {
+		if err := pool.journal.load(pool.AddLocals); err != nil {
 			log.Warn("Failed to load transaction journal", "err", err)
 		}
 		if err := pool.journal.rotate(pool.local()); err != nil {
@@ -928,19 +928,19 @@ func (pool *LegacyPool) promoteTx(addr common.Address, hash common.Hash, tx *typ
 	return true
 }
 
-// addLocals enqueues a batch of transactions into the pool if they are valid, marking the
+// AddLocals enqueues a batch of transactions into the pool if they are valid, marking the
 // senders as local ones, ensuring they go around the local pricing constraints.
 //
 // This method is used to add transactions from the RPC API and performs synchronous pool
 // reorganization and event propagation.
-func (pool *LegacyPool) addLocals(txs []*types.Transaction) []error {
+func (pool *LegacyPool) AddLocals(txs []*types.Transaction) []error {
 	return pool.Add(txs, !pool.config.NoLocals, true)
 }
 
 // addLocal enqueues a single local transaction into the pool if it is valid. This is
 // a convenience wrapper around addLocals.
 func (pool *LegacyPool) addLocal(tx *types.Transaction) error {
-	return pool.addLocals([]*types.Transaction{tx})[0]
+	return pool.AddLocals([]*types.Transaction{tx})[0]
 }
 
 // addRemotes enqueues a batch of transactions into the pool if they are valid. If the

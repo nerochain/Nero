@@ -43,6 +43,7 @@ import (
 	"github.com/ethereum/go-ethereum/eth/ethconfig"
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/miner"
+	"github.com/ethereum/go-ethereum/miner2"
 	"github.com/ethereum/go-ethereum/node"
 	"github.com/ethereum/go-ethereum/p2p"
 	"github.com/ethereum/go-ethereum/params"
@@ -204,7 +205,7 @@ func TestEth2PrepareAndGetPayload(t *testing.T) {
 	}
 	// give the payload some time to be built
 	time.Sleep(100 * time.Millisecond)
-	payloadID := (&miner.BuildPayloadArgs{
+	payloadID := (&miner2.BuildPayloadArgs{
 		Parent:       fcState.HeadBlockHash,
 		Timestamp:    blockParams.Timestamp,
 		FeeRecipient: blockParams.SuggestedFeeRecipient,
@@ -448,7 +449,7 @@ func startEthService(t *testing.T, genesis *core.Genesis, blocks []*types.Block)
 	}
 
 	mcfg := miner.DefaultConfig
-	mcfg.PendingFeeRecipient = testAddr
+	// mcfg.PendingFeeRecipient = testAddr
 	ethcfg := &ethconfig.Config{Genesis: genesis, SyncMode: downloader.FullSync, TrieTimeout: time.Minute, TrieDirtyCache: 256, TrieCleanCache: 256, Miner: mcfg}
 	ethservice, err := eth.New(n, ethcfg)
 	if err != nil {
@@ -666,7 +667,7 @@ func TestNewPayloadOnInvalidChain(t *testing.T) {
 }
 
 func assembleBlock(api *ConsensusAPI, parentHash common.Hash, params *engine.PayloadAttributes) (*engine.ExecutableData, error) {
-	args := &miner.BuildPayloadArgs{
+	args := &miner2.BuildPayloadArgs{
 		Parent:       parentHash,
 		Timestamp:    params.Timestamp,
 		FeeRecipient: params.SuggestedFeeRecipient,
@@ -674,7 +675,8 @@ func assembleBlock(api *ConsensusAPI, parentHash common.Hash, params *engine.Pay
 		Withdrawals:  params.Withdrawals,
 		BeaconRoot:   params.BeaconRoot,
 	}
-	payload, err := api.eth.Miner().BuildPayload(args)
+	payload, err := BuildMiner2(api.eth).BuildPayload(args)
+
 	if err != nil {
 		return nil, err
 	}
@@ -905,13 +907,13 @@ func TestNewPayloadOnInvalidTerminalBlock(t *testing.T) {
 	}
 
 	// Test parent already post TTD in NewPayload
-	args := &miner.BuildPayloadArgs{
+	args := &miner2.BuildPayloadArgs{
 		Parent:       parent.Hash(),
 		Timestamp:    parent.Time() + 1,
 		Random:       crypto.Keccak256Hash([]byte{byte(1)}),
 		FeeRecipient: parent.Coinbase(),
 	}
-	payload, err := api.eth.Miner().BuildPayload(args)
+	payload, err := BuildMiner2(api.eth).BuildPayload(args)
 	if err != nil {
 		t.Fatalf("error preparing payload, err=%v", err)
 	}
@@ -1066,7 +1068,7 @@ func TestWithdrawals(t *testing.T) {
 	}
 
 	// 10: verify state root is the same as parent
-	payloadID := (&miner.BuildPayloadArgs{
+	payloadID := (&miner2.BuildPayloadArgs{
 		Parent:       fcState.HeadBlockHash,
 		Timestamp:    blockParams.Timestamp,
 		FeeRecipient: blockParams.SuggestedFeeRecipient,
@@ -1115,7 +1117,7 @@ func TestWithdrawals(t *testing.T) {
 	}
 
 	// 11: verify locally build block.
-	payloadID = (&miner.BuildPayloadArgs{
+	payloadID = (&miner2.BuildPayloadArgs{
 		Parent:       fcState.HeadBlockHash,
 		Timestamp:    blockParams.Timestamp,
 		FeeRecipient: blockParams.SuggestedFeeRecipient,
@@ -1258,7 +1260,7 @@ func TestNilWithdrawals(t *testing.T) {
 		}
 
 		// 11: verify locally build block.
-		payloadID := (&miner.BuildPayloadArgs{
+		payloadID := (&miner2.BuildPayloadArgs{
 			Parent:       fcState.HeadBlockHash,
 			Timestamp:    test.blockParams.Timestamp,
 			FeeRecipient: test.blockParams.SuggestedFeeRecipient,
@@ -1610,7 +1612,7 @@ func TestParentBeaconBlockRoot(t *testing.T) {
 	}
 
 	// 11: verify state root is the same as parent
-	payloadID := (&miner.BuildPayloadArgs{
+	payloadID := (&miner2.BuildPayloadArgs{
 		Parent:       fcState.HeadBlockHash,
 		Timestamp:    blockParams.Timestamp,
 		FeeRecipient: blockParams.SuggestedFeeRecipient,

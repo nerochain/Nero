@@ -22,7 +22,7 @@ import (
 	"github.com/ethereum/go-ethereum/beacon/engine"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
-	"github.com/ethereum/go-ethereum/miner"
+	"github.com/ethereum/go-ethereum/miner2"
 )
 
 // maxTrackedPayloads is the maximum number of prepared payloads the execution
@@ -42,7 +42,7 @@ const maxTrackedHeaders = 96
 // or evicted.
 type payloadQueueItem struct {
 	id      engine.PayloadID
-	payload *miner.Payload
+	payload *miner2.Payload
 }
 
 // payloadQueue tracks the latest handful of constructed payloads to be retrieved
@@ -61,7 +61,7 @@ func newPayloadQueue() *payloadQueue {
 }
 
 // put inserts a new payload into the queue at the given id.
-func (q *payloadQueue) put(id engine.PayloadID, payload *miner.Payload) {
+func (q *payloadQueue) put(id engine.PayloadID, payload *miner2.Payload) {
 	q.lock.Lock()
 	defer q.lock.Unlock()
 

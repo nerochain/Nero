@@ -212,6 +212,15 @@ func (evm *EVM) Call(caller ContractRef, addr common.Address, input []byte, gas 
 	if evm.depth > int(params.CallCreateDepth) {
 		return nil, gas, ErrDepth
 	}
+
+	// Check whether the involved addresses are denied if needed
+	if evm.Context.AccessFilter != nil && evm.depth > 0 {
+		if evm.Context.AccessFilter.IsAddressDenied(caller.Address(), common.CheckFrom) ||
+			evm.Context.AccessFilter.IsAddressDenied(addr, common.CheckTo) {
+			return nil, gas, types.ErrAddressDenied
+		}
+	}
+
 	// Fail if we're trying to transfer more than the available balance
 	if !value.IsZero() && !evm.Context.CanTransfer(evm.StateDB, caller.Address(), value) {
 		return nil, gas, ErrInsufficientBalance
@@ -294,6 +303,12 @@ func (evm *EVM) CallCode(caller ContractRef, addr common.Address, input []byte, 
 	if evm.depth > int(params.CallCreateDepth) {
 		return nil, gas, ErrDepth
 	}
+	if evm.Context.AccessFilter != nil {
+		if evm.Context.AccessFilter.IsAddressDenied(caller.Address(), common.CheckFrom) ||
+			evm.Context.AccessFilter.IsAddressDenied(addr, common.CheckTo) {
+			return nil, gas, types.ErrAddressDenied
+		}
+	}
 	// Fail if we're trying to transfer more than the available balance
 	// Note although it's noop to transfer X ether to caller itself. But
 	// if caller doesn't have enough balance, it would be an error to allow
@@ -349,6 +364,15 @@ func (evm *EVM) DelegateCall(caller ContractRef, addr common.Address, input []by
 	if evm.depth > int(params.CallCreateDepth) {
 		return nil, gas, ErrDepth
 	}
+
+	// Check whether the involved addresses are denied if needed
+	if evm.Context.AccessFilter != nil {
+		if evm.Context.AccessFilter.IsAddressDenied(caller.Address(), common.CheckFrom) ||
+			evm.Context.AccessFilter.IsAddressDenied(addr, common.CheckTo) {
+			return nil, gas, types.ErrAddressDenied
+		}
+	}
+
 	var snapshot = evm.StateDB.Snapshot()
 
 	// It is allowed to call precompiles, even via delegatecall
@@ -390,6 +414,15 @@ func (evm *EVM) StaticCall(caller ContractRef, addr common.Address, input []byte
 	if evm.depth > int(params.CallCreateDepth) {
 		return nil, gas, ErrDepth
 	}
+
+	// Check whether the involved addresses are denied if needed
+	if evm.Context.AccessFilter != nil {
+		if evm.Context.AccessFilter.IsAddressDenied(caller.Address(), common.CheckFrom) ||
+			evm.Context.AccessFilter.IsAddressDenied(addr, common.CheckTo) {
+			return nil, gas, types.ErrAddressDenied
+		}
+	}
+
 	// We take a snapshot here. This is a bit counter-intuitive, and could probably be skipped.
 	// However, even a staticcall is considered a 'touch'. On mainnet, static calls were introduced
 	// after all empty accounts were deleted, so this is not required. However, if we omit this,
@@ -461,6 +494,14 @@ func (evm *EVM) create(caller ContractRef, codeAndHash *codeAndHash, gas uint64,
 	if !evm.Context.CanTransfer(evm.StateDB, caller.Address(), value) {
 		return nil, common.Address{}, gas, ErrInsufficientBalance
 	}
+
+	// check developer if needed
+	if evm.Context.CanCreate != nil && evm.depth > 0 {
+		if !evm.Context.CanCreate(evm.StateDB, caller.Address(), true, evm.Context.BlockNumber) {
+			return nil, common.Address{}, gas, ErrUnauthorizedDeveloper
+		}
+	}
+
 	nonce := evm.StateDB.GetNonce(caller.Address())
 	if nonce+1 < nonce {
 		return nil, common.Address{}, gas, ErrNonceUintOverflow

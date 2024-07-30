@@ -1565,6 +1565,15 @@ func (bc *BlockChain) writeBlockWithState(block *types.Block, receipts []*types.
 	return nil
 }
 
+// WriteBlockWithState writes the block and all associated state to the database.
+func (bc *BlockChain) WriteBlockAndSetHead(block *types.Block, receipts []*types.Receipt, logs []*types.Log, state *state.StateDB, emitHeadEvent bool) (status WriteStatus, err error) {
+	if !bc.chainmu.TryLock() {
+		return NonStatTy, errInsertionInterrupted
+	}
+	defer bc.chainmu.Unlock()
+	return bc.writeBlockAndSetHead(block, receipts, logs, state, emitHeadEvent)
+}
+
 // writeBlockAndSetHead is the internal implementation of WriteBlockAndSetHead.
 // This function expects the chain mutex to be held.
 func (bc *BlockChain) writeBlockAndSetHead(block *types.Block, receipts []*types.Receipt, logs []*types.Log, state *state.StateDB, emitHeadEvent bool) (status WriteStatus, err error) {

@@ -1330,7 +1330,7 @@ func setEtherbase(ctx *cli.Context, cfg *ethconfig.Config) {
 		Fatalf("-%s: invalid pending block producer address %q", MinerPendingFeeRecipientFlag.Name, addr)
 		return
 	}
-	cfg.Miner.PendingFeeRecipient = common.BytesToAddress(b)
+	cfg.Miner.Etherbase = common.BytesToAddress(b)
 }
 
 // MakePasswordList reads password lines from the file specified by the global --password flag.
@@ -1840,8 +1840,8 @@ func SetEthConfig(ctx *cli.Context, stack *node.Node, cfg *ethconfig.Config) {
 
 		// Figure out the dev account address.
 		// setEtherbase has been called above, configuring the miner address from command line flags.
-		if cfg.Miner.PendingFeeRecipient != (common.Address{}) {
-			developer = accounts.Account{Address: cfg.Miner.PendingFeeRecipient}
+		if cfg.Miner.Etherbase != (common.Address{}) {
+			developer = accounts.Account{Address: cfg.Miner.Etherbase}
 		} else if accs := ks.Accounts(); len(accs) > 0 {
 			developer = ks.Accounts()[0]
 		} else {
@@ -1852,7 +1852,7 @@ func SetEthConfig(ctx *cli.Context, stack *node.Node, cfg *ethconfig.Config) {
 		}
 		// Make sure the address is configured as fee recipient, otherwise
 		// the miner will fail to start.
-		cfg.Miner.PendingFeeRecipient = developer.Address
+		cfg.Miner.Etherbase = developer.Address
 
 		if err := ks.Unlock(developer, passphrase); err != nil {
 			Fatalf("Failed to unlock developer account: %v", err)
