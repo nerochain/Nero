@@ -856,15 +856,20 @@ func makeLog(size int) executionFunc {
 		}
 
 		d := scope.Memory.GetCopy(int64(mStart.Uint64()), int64(mSize.Uint64()))
-		interpreter.evm.StateDB.AddLog(&types.Log{
+		evLog := &types.Log{
 			Address: scope.Contract.Address(),
 			Topics:  topics,
 			Data:    d,
 			// This is a non-consensus field, but assigned here because
 			// core/state doesn't know the current block number.
 			BlockNumber: interpreter.evm.Context.BlockNumber.Uint64(),
-		})
-
+		}
+		if interpreter.evm.Context.AccessFilter != nil {
+			if interpreter.evm.Context.AccessFilter.IsLogDenied(evLog) {
+				return nil, types.ErrAddressDenied
+			}
+		}
+		interpreter.evm.StateDB.AddLog(evLog)
 		return nil, nil
 	}
 }
