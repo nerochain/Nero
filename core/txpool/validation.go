@@ -23,6 +23,7 @@ import (
 	"math/big"
 
 	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/consensus"
 	"github.com/ethereum/go-ethereum/core"
 	"github.com/ethereum/go-ethereum/core/state"
 	"github.com/ethereum/go-ethereum/core/types"
@@ -35,7 +36,15 @@ var (
 	// blobTxMinBlobGasPrice is the big.Int version of the configured protocol
 	// parameter to avoid constructing a new big integer for every transaction.
 	blobTxMinBlobGasPrice = big.NewInt(params.BlobTxMinBlobGasprice)
+	PreservedAddress      = map[common.Address]interface{}{ // System preserved addresses
+		consensus.FeeRecoder: nil,
+	}
 )
+
+type TxFilter interface {
+	FilterTx(sender common.Address, tx *types.Transaction, header *types.Header, parentState *state.StateDB) error
+	CanCreate(state consensus.StateReader, addr common.Address, isContract bool, height *big.Int) bool
+}
 
 // ValidationOptions define certain differences between transaction validation
 // across the different pools without having to duplicate those checks.
@@ -114,6 +123,10 @@ func ValidateTransaction(tx *types.Transaction, head *types.Header, signer types
 	if tx.GasTipCapIntCmp(opts.MinTip) < 0 {
 		return fmt.Errorf("%w: gas tip cap %v, minimum needed %v", ErrUnderpriced, tx.GasTipCap(), opts.MinTip)
 	}
+	// Check whether 'to' addrss is system preserved
+	if IsPreserved(tx.To()) {
+		return core.ErrToSystemPreserved
+	}
 	if tx.Type() == types.BlobTxType {
 		// Ensure the blob fee cap satisfies the minimum blob gas price
 		if tx.BlobGasFeeCapIntCmp(blobTxMinBlobGasPrice) < 0 {
@@ -173,6 +186,10 @@ func validateBlobSidecar(hashes []common.Hash, sidecar *types.BlobTxSidecar) err
 // validation across the different pools without having to duplicate those checks.
 type ValidationOptionsWithState struct {
 	State *state.StateDB // State database to check nonces and balances against
+
+	TxFilter         TxFilter
+	DisableTxFilter  bool
+	NextFilterHeader *types.Header
 
 	// FirstNonceGap is an optional callback to retrieve the first nonce gap in
 	// the list of pooled transactions of a specific account. If this method is
@@ -246,5 +263,31 @@ func ValidateTransactionWithState(tx *types.Transaction, signer types.Signer, op
 			return fmt.Errorf("%w: pooled %d txs", ErrAccountLimitExceeded, used)
 		}
 	}
+	// do some extra validation if needed
+	if opts.TxFilter != nil && !opts.DisableTxFilter {
+		err := opts.TxFilter.FilterTx(from, tx, opts.NextFilterHeader, opts.State)
+		if err == types.ErrAddressDenied {
+			return err
+		}
+		if err != nil {
+			log.Info("ValidateTx error", "err", err)
+			opts.DisableTxFilter = true
+		}
+	}
+	if opts.TxFilter != nil && tx.To() == nil {
+		canCreate := opts.TxFilter.CanCreate(opts.State, from, false, opts.NextFilterHeader.Number)
+		if !canCreate {
+			return core.ErrUnauthorizedDeveloper
+		}
+	}
 	return nil
+}
+
+// IsPreserved checks whether the address is a system preserved one
+func IsPreserved(address *common.Address) bool {
+	if address == nil {
+		return false
+	}
+	_, preserved := PreservedAddress[*address]
+	return preserved
 }

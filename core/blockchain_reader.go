@@ -171,6 +171,33 @@ func (bc *BlockChain) GetBlock(hash common.Hash, number uint64) *types.Block {
 	return block
 }
 
+func (bc *BlockChain) GetBlockPredictStatus(hash common.Hash, number uint64) uint8 {
+	currentBlockNumber := bc.CurrentBlock().Number.Uint64()
+	if currentBlockNumber > unableSureBlockStateInterval {
+		if number < currentBlockNumber-unableSureBlockStateInterval {
+			if bc.HasBlock(hash, number) {
+				return types.BasFinalized
+			} else {
+				return types.BasUnknown
+			}
+		}
+	}
+	return bc.GetBlockStatus(number, hash)
+}
+
+func (bc *BlockChain) GetLastFinalizedBlockNumber() uint64 {
+	last := bc.lastFinalizedBlockNumber.Load().(*big.Int)
+	number := last.Uint64()
+	currentBlockNumber := bc.CurrentBlock().Number.Uint64()
+	if currentBlockNumber > unableSureBlockStateInterval {
+		newNumber := currentBlockNumber - unableSureBlockStateInterval
+		if number < newNumber {
+			return newNumber
+		}
+	}
+	return number
+}
+
 // GetBlockByHash retrieves a block from the database by hash, caching it if found.
 func (bc *BlockChain) GetBlockByHash(hash common.Hash) *types.Block {
 	number := bc.hc.GetBlockNumber(hash)

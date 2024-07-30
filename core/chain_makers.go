@@ -342,6 +342,12 @@ func GenerateChain(config *params.ChainConfig, parent *types.Block, engine conse
 		if config.DAOForkSupport && config.DAOForkBlock != nil && config.DAOForkBlock.Cmp(b.header.Number) == 0 {
 			misc.ApplyDAOHardFork(statedb)
 		}
+		turboEngine, isTurboEngine := engine.(consensus.TurboEngine)
+		if isTurboEngine {
+			if err := turboEngine.PreHandle(b.cm, b.header, statedb); err != nil {
+				return nil, nil
+			}
+		}
 		// Execute any user modifications to the block
 		if gen != nil {
 			gen(i, b)

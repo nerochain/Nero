@@ -262,6 +262,7 @@ type BlockChain struct {
 	logger     *tracing.Hooks
 
 	TurboEngine              consensus.TurboEngine
+	isTurboEngine            bool
 	currentAttestedNumber    atomic.Value // Currently the latest attested block number that is stored in db
 	currentBlockStatusNumber atomic.Value
 	lastFinalizedBlockNumber atomic.Value
@@ -330,6 +331,29 @@ func NewBlockChain(db ethdb.Database, cacheConfig *CacheConfig, genesis *Genesis
 	bc.validator = NewBlockValidator(chainConfig, bc, engine)
 	bc.prefetcher = newStatePrefetcher(chainConfig, bc, engine)
 	bc.processor = NewStateProcessor(chainConfig, bc, engine)
+
+	bc.TurboEngine, bc.isTurboEngine = engine.(consensus.TurboEngine)
+	if bc.isTurboEngine {
+		// load stored last attested number
+		currentAttested := rawdb.ReadLastAttestNumber(bc.db, bc.TurboEngine.CurrentValidator())
+		bc.currentAttestedNumber.Store(currentAttested)
+		log.Info("last stored attested number", "num", currentAttested)
+
+		blockStatusNumber := rawdb.LastBlockStatusNumber(bc.db)
+		bc.currentBlockStatusNumber.Store(blockStatusNumber)
+		log.Info("last stored block status number", "num", blockStatusNumber)
+		lastFinalizedBlockNum := rawdb.LastFinalizedBlockNumber(bc.db)
+		bc.lastFinalizedBlockNumber.Store(lastFinalizedBlockNum)
+		log.Info("last finalized stored block status number", "num", lastFinalizedBlockNum)
+		bc.firstCatchUpNumber.Store(new(big.Int).SetUint64(0))
+
+		bc.FutureAttessCache = lru.NewCache[uint64, *types.FutureAttestations](maxFutureAttestations)
+		bc.RecentAttessCache = lru.NewCache[uint64, *types.BlockNumAttestations](attestationsCacheLimit)
+		bc.HistoryAttessCache = lru.NewCache[uint64, *types.HistoryAttestations](historyAttessCacheLimit)
+		bc.CasperFFGHistoryCache = lru.NewCache[interface{}, types.CasperFFGHistoryList](casperFFGHistoryCacheLimit)
+
+		bc.BlockStatusCache = lru.NewCache[uint64, *types.BlockStatus](blockStatusCacheLimit)
+	}
 
 	var err error
 	bc.hc, err = NewHeaderChain(db, chainConfig, engine, bc.insertStopped)
@@ -480,7 +504,11 @@ func NewBlockChain(db ethdb.Database, cacheConfig *CacheConfig, genesis *Genesis
 		}
 		rawdb.WriteChainConfig(db, genesisHash, chainConfig)
 	}
-
+	// Start attestation processor
+	// if bc.isTurboEngine {
+	// 	bc.wg.Add(1)
+	// 	go bc.attestationHandleLoop()
+	// }
 	// Start tx indexer if it's enabled.
 	if txLookupLimit != nil {
 		bc.txIndexer = newTxIndexer(*txLookupLimit, bc)
@@ -939,6 +967,14 @@ func (bc *BlockChain) setHeadBeyondRoot(head uint64, time uint64, root common.Ha
 	bc.receiptsCache.Purge()
 	bc.blockCache.Purge()
 	bc.txLookupCache.Purge()
+
+	if bc.isTurboEngine {
+		bc.FutureAttessCache.Purge()
+		bc.RecentAttessCache.Purge()
+		bc.HistoryAttessCache.Purge()
+		bc.CasperFFGHistoryCache.Purge()
+		bc.BlockStatusCache.Purge()
+	}
 
 	// Clear safe block, finalized block if needed
 	if safe := bc.CurrentSafeBlock(); safe != nil && head < safe.Number.Uint64() {

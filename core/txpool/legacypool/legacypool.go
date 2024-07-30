@@ -135,22 +135,26 @@ type Config struct {
 	GlobalQueue  uint64 // Maximum number of non-executable transaction slots for all accounts
 
 	Lifetime time.Duration // Maximum amount of time non-executable transaction are queued
+
+	JamConfig TxJamConfig
 }
 
 // DefaultConfig contains the default configurations for the transaction pool.
 var DefaultConfig = Config{
 	Journal:   "transactions.rlp",
-	Rejournal: time.Hour,
+	Rejournal: 10 * time.Minute,
 
 	PriceLimit: 1,
 	PriceBump:  10,
 
-	AccountSlots: 16,
-	GlobalSlots:  4096 + 1024, // urgent + floating queue capacity with 4:1 ratio
+	AccountSlots: 64,
+	GlobalSlots:  10240, // more slots for big block
 	AccountQueue: 64,
 	GlobalQueue:  1024,
 
-	Lifetime: 3 * time.Hour,
+	Lifetime: 30 * time.Minute,
+
+	JamConfig: DefaultJamConfig,
 }
 
 // sanitize checks the provided user configurations and changes anything that's
@@ -222,6 +226,15 @@ type LegacyPool struct {
 	all     *lookup                      // All transactions to allow lookups
 	priced  *pricedList                  // All transactions sorted by price
 
+	jamIndexer *txJamIndexer // tx jam indexer
+
+	txFilter         txpool.TxFilter // A specific consensus can use this to do some extra validation to a transaction
+	nextFilterHeader *types.Header   // A mock header of next block for transaction filter
+
+	// there's a special case we need this: during a large chain insertion, the ChainHeadEvent will not be fired in time, then some old trie-nodes
+	// will be discarded due to GC, and it will cause failure to get blacklist.
+	disableTxFilter bool // disableTxFilter will disable the tx filter during a period if it's true,
+
 	reqResetCh      chan *txpoolResetRequest
 	reqPromoteCh    chan *accountSet
 	queueTxEventCh  chan *types.Transaction
@@ -260,6 +273,7 @@ func New(config Config, chain BlockChain) *LegacyPool {
 		reorgShutdownCh: make(chan struct{}),
 		initDoneCh:      make(chan struct{}),
 	}
+	pool.jamIndexer = newTxJamIndexer(config.JamConfig, pool)
 	pool.locals = newAccountSet(pool.signer)
 	for _, addr := range config.Locals {
 		log.Info("Setting new local account", "address", addr)
@@ -271,6 +285,23 @@ func New(config Config, chain BlockChain) *LegacyPool {
 		pool.journal = newTxJournal(config.Journal)
 	}
 	return pool
+}
+
+// InitTxFilter sets the extra validator
+func (pool *LegacyPool) InitTxFilter(v txpool.TxFilter) {
+	pool.makeFilterHeader(pool.chain.CurrentBlock())
+	pool.txFilter = v
+}
+
+func (pool *LegacyPool) makeFilterHeader(currHead *types.Header) {
+	next := new(big.Int).Add(currHead.Number, big.NewInt(1))
+	pool.nextFilterHeader = &types.Header{
+		ParentHash: currHead.Hash(),
+		Difficulty: new(big.Int).Set(currHead.Difficulty),
+		Number:     next,
+		GasLimit:   currHead.GasLimit,
+		Time:       currHead.Time + 1,
+	}
 }
 
 // Filter returns whether the given transaction can be consumed by the legacy
@@ -403,7 +434,7 @@ func (pool *LegacyPool) Close() error {
 	// Terminate the pool reorger and return
 	close(pool.reorgShutdownCh)
 	pool.wg.Wait()
-
+	pool.jamIndexer.Stop()
 	if pool.journal != nil {
 		pool.journal.close()
 	}
@@ -416,6 +447,7 @@ func (pool *LegacyPool) Close() error {
 func (pool *LegacyPool) Reset(oldHead, newHead *types.Header) {
 	wait := pool.requestReset(oldHead, newHead)
 	<-wait
+	pool.jamIndexer.UpdateHeader(newHead)
 }
 
 // SubscribeTransactions registers a subscription for new transaction events,
@@ -583,6 +615,11 @@ func (pool *LegacyPool) Locals() []common.Address {
 	return pool.locals.flatten()
 }
 
+// JamIndex returns the jam index which is evaluated by current pending transactions.
+func (pool *LegacyPool) JamIndex() int {
+	return pool.jamIndexer.JamIndex()
+}
+
 // local retrieves all currently known local transactions, grouped by origin
 // account and sorted by nonce. The returned transaction set is a copy and can be
 // freely modified by calling code.
@@ -627,6 +664,10 @@ func (pool *LegacyPool) validateTxBasics(tx *types.Transaction, local bool) erro
 func (pool *LegacyPool) validateTx(tx *types.Transaction, local bool) error {
 	opts := &txpool.ValidationOptionsWithState{
 		State: pool.currentState,
+
+		TxFilter:         pool.txFilter,
+		DisableTxFilter:  pool.disableTxFilter,
+		NextFilterHeader: pool.nextFilterHeader,
 
 		FirstNonceGap: nil, // Pool allows arbitrary arrival order, don't invalidate nonce gaps
 		UsedAndLeftSlots: func(addr common.Address) (int, int) {
@@ -716,6 +757,7 @@ func (pool *LegacyPool) add(tx *types.Transaction, local bool) (replaced bool, e
 		if !isLocal && pool.priced.Underpriced(tx) {
 			log.Trace("Discarding underpriced transaction", "hash", hash, "gasTipCap", tx.GasTipCap(), "gasFeeCap", tx.GasFeeCap())
 			underpricedTxMeter.Mark(1)
+			pool.jamIndexer.UnderPricedInc()
 			return false, txpool.ErrUnderpriced
 		}
 
@@ -764,7 +806,7 @@ func (pool *LegacyPool) add(tx *types.Transaction, local bool) (replaced bool, e
 		for _, tx := range drop {
 			log.Trace("Discarding freshly underpriced transaction", "hash", tx.Hash(), "gasTipCap", tx.GasTipCap(), "gasFeeCap", tx.GasFeeCap())
 			underpricedTxMeter.Mark(1)
-
+			pool.jamIndexer.UnderPricedInc()
 			sender, _ := types.Sender(pool.signer, tx)
 			dropped := pool.removeTx(tx.Hash(), false, sender != from) // Don't unreserve the sender of the tx being added if last from the acc
 
@@ -1434,6 +1476,11 @@ func (pool *LegacyPool) reset(oldHead, newHead *types.Header) {
 	log.Debug("Reinjecting stale transactions", "count", len(reinject))
 	core.SenderCacher.Recover(pool.signer, reinject)
 	pool.addTxsLocked(reinject, false)
+
+	if pool.txFilter != nil {
+		pool.makeFilterHeader(newHead)
+		pool.disableTxFilter = false
+	}
 }
 
 // promoteExecutables moves transactions that have become processable from the
@@ -1675,8 +1722,10 @@ func (pool *LegacyPool) demoteUnexecutables() {
 			pool.enqueueTx(hash, tx, false, false)
 		}
 		pendingGauge.Dec(int64(len(olds) + len(drops) + len(invalids)))
+		ln := len(olds) + len(drops) + len(invalids)
+		pendingGauge.Dec(int64(ln))
 		if pool.locals.contains(addr) {
-			localGauge.Dec(int64(len(olds) + len(drops) + len(invalids)))
+			localGauge.Dec(int64(ln))
 		}
 		// If there's a gap in front, alert (should never happen) and postpone all transactions
 		if list.Len() > 0 && list.txs.Get(nonce) == nil {
