@@ -480,3 +480,12 @@ func (p *TxPool) Sync() error {
 		return errors.New("pool already terminated")
 	}
 }
+
+func (p *TxPool) JamIndex() int {
+	for _, subpool := range p.subpools {
+		if idx := subpool.JamIndex(); idx > 0 {
+			return idx
+		}
+	}
+	return 0
+}

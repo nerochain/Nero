@@ -1653,3 +1653,7 @@ func (p *BlobPool) Status(hash common.Hash) txpool.TxStatus {
 	}
 	return txpool.TxStatusUnknown
 }
+
+func (pool *BlobPool) JamIndex() int {
+	return 0
+}
