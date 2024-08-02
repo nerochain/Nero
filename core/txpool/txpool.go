@@ -284,6 +284,19 @@ func (p *TxPool) SetGasTip(tip *big.Int) {
 	}
 }
 
+func (p *TxPool) GasTip() *big.Int {
+	if len(p.subpools) > 0 {
+		return p.subpools[0].GasTip()
+	}
+	return common.Big0
+}
+
+func (p *TxPool) InitTxFilter(v TxFilter) {
+	for _, subpool := range p.subpools {
+		subpool.InitTxFilter(v)
+	}
+}
+
 // Has returns an indicator whether the pool has a transaction cached with the
 // given hash.
 func (p *TxPool) Has(hash common.Hash) bool {

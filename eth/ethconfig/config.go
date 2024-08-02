@@ -26,6 +26,7 @@ import (
 	"github.com/ethereum/go-ethereum/consensus/beacon"
 	"github.com/ethereum/go-ethereum/consensus/clique"
 	"github.com/ethereum/go-ethereum/consensus/ethash"
+	"github.com/ethereum/go-ethereum/consensus/turbo"
 	"github.com/ethereum/go-ethereum/core"
 	"github.com/ethereum/go-ethereum/core/txpool/blobpool"
 	"github.com/ethereum/go-ethereum/core/txpool/legacypool"
@@ -44,13 +45,28 @@ var FullNodeGPO = gasprice.Config{
 	MaxBlockHistory:  1024,
 	MaxPrice:         gasprice.DefaultMaxPrice,
 	IgnorePrice:      gasprice.DefaultIgnorePrice,
+
+	PredConfig: DefaultPredictionConfig,
+}
+
+var DefaultPredictionConfig = gasprice.PredConfig{
+	PredictIntervalSecs: 3, // in seconds
+	MinTxCntPerBlock:    100,
+	FastFactor:          2,
+	MedianFactor:        5,
+	LowFactor:           8,
+	MinMedianIndex:      500,
+	MinLowIndex:         1000,
+	FastPercentile:      75,
+	MeidanPercentile:    90,
+	MaxValidPendingSecs: 300,
 }
 
 // Defaults contains default settings for use on the Ethereum main net.
 var Defaults = Config{
 	SyncMode:           downloader.SnapSync,
 	NetworkId:          0, // enable auto configuration of networkID == chainID
-	TxLookupLimit:      2350000,
+	TxLookupLimit:      0,
 	TransactionHistory: 2350000,
 	StateHistory:       params.FullImmutabilityThreshold,
 	LightPeers:         100,
@@ -86,6 +102,7 @@ type Config struct {
 	// nodes to connect to.
 	EthDiscoveryURLs  []string
 	SnapDiscoveryURLs []string
+	ConsDiscoveryURLs []string
 
 	NoPruning  bool // Whether to disable pruning and flush everything to disk
 	NoPrefetch bool // Whether to disable prefetching and only load state on demand
@@ -121,7 +138,7 @@ type Config struct {
 
 	TrieCleanCache int
 	TrieDirtyCache int
-	TrieTimeout    time.Duration
+	TrieTimeout    time.Duration `toml:",omitempty"`
 	SnapshotCache  int
 	Preimages      bool
 
@@ -178,5 +195,10 @@ func CreateConsensusEngine(config *params.ChainConfig, db ethdb.Database) (conse
 	if config.Clique != nil {
 		return beacon.New(clique.New(config.Clique, db)), nil
 	}
+	// If proof-of-stake-authority is requested, set it up
+	if config.Turbo != nil {
+		return turbo.New(config, db), nil
+	}
+
 	return beacon.New(ethash.NewFaker()), nil
 }

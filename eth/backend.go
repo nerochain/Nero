@@ -75,6 +75,7 @@ type Ethereum struct {
 	handler            *handler
 	ethDialCandidates  enode.Iterator
 	snapDialCandidates enode.Iterator
+	consDialCandidates enode.Iterator
 
 	// DB interfaces
 	chainDb ethdb.Database // Block chain database
@@ -82,6 +83,9 @@ type Ethereum struct {
 	eventMux       *event.TypeMux
 	engine         consensus.Engine
 	accountManager *accounts.Manager
+
+	isTurboEngine bool
+	turboEngine   consensus.TurboEngine
 
 	bloomRequests     chan chan *bloombits.Retrieval // Channel receiving bloom data retrieval requests
 	bloomIndexer      *core.ChainIndexer             // Bloom indexer operating during block imports
@@ -167,6 +171,9 @@ func New(stack *node.Node, config *ethconfig.Config) (*Ethereum, error) {
 		p2pServer:         stack.Server(),
 		shutdownTracker:   shutdowncheck.NewShutdownTracker(chainDb),
 	}
+
+	eth.turboEngine, eth.isTurboEngine = eth.engine.(consensus.TurboEngine)
+
 	bcVersion := rawdb.ReadDatabaseVersion(chainDb)
 	var dbVer = "<nil>"
 	if bcVersion != nil {
@@ -243,6 +250,27 @@ func New(stack *node.Node, config *ethconfig.Config) (*Ethereum, error) {
 	if err != nil {
 		return nil, err
 	}
+
+	// do some extra work if consensus engine is turbo.
+	if turboEngine, ok := eth.engine.(*turbo.Turbo); ok {
+		// set chain & state fn
+		turboEngine.SetChain(eth.blockchain)
+		turboEngine.SetStateFn(eth.blockchain.StateAt)
+
+		// set consensus-related transaction validator
+		eth.txPool.InitTxFilter(turboEngine)
+
+		// Init RewardsUpdatePeroid
+		currState, err := eth.blockchain.State()
+		if err != nil {
+			return nil, err
+		}
+		if err = turboEngine.InitRewardsUpdatePeroid(eth.blockchain, currState); err != nil {
+			log.Error("Init RewardsUpdatePeroid failed in Turbo", "err", err)
+			return nil, err
+		}
+	}
+
 	// Permit the downloader to use the trie cache allowance during fast sync
 	cacheLimit := cacheConfig.TrieCleanLimit + cacheConfig.TrieDirtyLimit + cacheConfig.SnapshotLimit
 	if eth.handler, err = newHandler(&handlerConfig{
@@ -262,7 +290,7 @@ func New(stack *node.Node, config *ethconfig.Config) (*Ethereum, error) {
 	eth.miner = miner.New(eth, &config.Miner, chainConfig, eth.EventMux(), eth.engine, eth.isLocalBlock)
 	eth.miner.SetExtra(makeExtraData(config.Miner.ExtraData))
 
-	eth.APIBackend = &EthAPIBackend{stack.Config().ExtRPCEnabled(), stack.Config().AllowUnprotectedTxs, eth, nil}
+	eth.APIBackend = &EthAPIBackend{stack.Config().ExtRPCEnabled(), stack.Config().AllowUnprotectedTxs, eth, nil, nil}
 	if eth.APIBackend.allowUnprotectedTxs {
 		log.Info("Unprotected transactions allowed")
 	}
@@ -282,6 +310,10 @@ func New(stack *node.Node, config *ethconfig.Config) (*Ethereum, error) {
 	if err != nil {
 		return nil, err
 	}
+	eth.consDialCandidates, err = dnsclient.NewIterator(eth.config.ConsDiscoveryURLs...)
+	if err != nil {
+		return nil, err
+	}
 
 	// Start the RPC service
 	eth.netRPCService = ethapi.NewNetAPI(eth.p2pServer, networkID)
@@ -291,10 +323,54 @@ func New(stack *node.Node, config *ethconfig.Config) (*Ethereum, error) {
 	stack.RegisterProtocols(eth.Protocols())
 	stack.RegisterLifecycle(eth)
 
+	// gas price prediction
+	gppCfg := checkPricePredictionConfig(&gpoParams)
+	eth.APIBackend.gpp = gasprice.NewPrediction(*gppCfg, eth.APIBackend, eth.txPool)
+
 	// Successful startup; push a marker and check previous unclean shutdowns.
 	eth.shutdownTracker.MarkStartup()
 
 	return eth, nil
+}
+
+func checkPricePredictionConfig(cfg *gasprice.Config) *gasprice.Config {
+	if cfg == nil {
+		cfg1 := ethconfig.FullNodeGPO
+		return &cfg1
+	}
+	defaultConf := ethconfig.FullNodeGPO
+	if cfg.PredictIntervalSecs == 0 {
+		cfg.PredictIntervalSecs = defaultConf.PredictIntervalSecs
+	}
+	if cfg.MinTxCntPerBlock == 0 {
+		cfg.MinTxCntPerBlock = defaultConf.MinTxCntPerBlock
+	}
+
+	if cfg.MinMedianIndex == 0 {
+		cfg.MinMedianIndex = defaultConf.MinMedianIndex
+	}
+	if cfg.MinLowIndex == 0 {
+		cfg.MinLowIndex = defaultConf.MinLowIndex
+	}
+	if cfg.FastPercentile == 0 {
+		cfg.FastPercentile = defaultConf.FastPercentile
+	}
+	if cfg.MeidanPercentile == 0 {
+		cfg.MeidanPercentile = defaultConf.MeidanPercentile
+	}
+	if cfg.FastFactor == 0 {
+		cfg.FastFactor = defaultConf.FastFactor
+	}
+	if cfg.MedianFactor == 0 {
+		cfg.MedianFactor = defaultConf.MedianFactor
+	}
+	if cfg.LowFactor == 0 {
+		cfg.LowFactor = defaultConf.LowFactor
+	}
+	if cfg.MaxValidPendingSecs == 0 {
+		cfg.MaxValidPendingSecs = defaultConf.MaxValidPendingSecs
+	}
+	return cfg
 }
 
 func makeExtraData(extra []byte) []byte {
@@ -434,6 +510,76 @@ func (s *Ethereum) SetEtherbase(etherbase common.Address) {
 	s.lock.Unlock()
 
 	s.miner.SetEtherbase(etherbase)
+}
+
+// StartMining starts the miner with the given number of CPU threads. If mining
+// is already running, this method adjust the number of threads allowed to use
+// and updates the minimum price required by the transaction pool.
+func (s *Ethereum) StartMining(threads int) error {
+	// Update the thread count within the consensus engine
+	type threaded interface {
+		SetThreads(threads int)
+	}
+	if th, ok := s.engine.(threaded); ok {
+		log.Info("Updated mining threads", "threads", threads)
+		if threads == 0 {
+			threads = -1 // Disable the miner from within
+		}
+		th.SetThreads(threads)
+	}
+	// If the miner was not running, initialize it
+	if !s.IsMining() {
+		// Propagate the initial price point to the transaction pool
+		s.lock.RLock()
+		price := s.gasPrice
+		s.lock.RUnlock()
+		s.txPool.SetGasTip(price)
+
+		// Configure the local mining address
+		eb, err := s.Etherbase()
+		if err != nil {
+			log.Error("Cannot start mining without etherbase", "err", err)
+			return fmt.Errorf("etherbase missing: %v", err)
+		}
+		if clique, ok := s.engine.(*clique.Clique); ok {
+			wallet, err := s.accountManager.Find(accounts.Account{Address: eb})
+			if wallet == nil || err != nil {
+				log.Error("Etherbase account unavailable locally", "err", err)
+				return fmt.Errorf("signer missing: %v", err)
+			}
+			clique.Authorize(eb, wallet.SignData)
+		}
+		if turbo, ok := s.engine.(*turbo.Turbo); ok {
+			wallet, err := s.accountManager.Find(accounts.Account{Address: eb})
+			if wallet == nil || err != nil {
+				log.Error("Etherbase account unavailable locally", "err", err)
+				return fmt.Errorf("signer missing: %v", err)
+			}
+			turbo.Authorize(eb, wallet.SignData, wallet.SignTx)
+		}
+		// If mining is started, we can disable the transaction rejection mechanism
+		// introduced to speed sync times.
+		// atomic.StoreUint32(&s.handler.acceptTxs, 1)
+
+		go s.miner.Start(eb)
+		// s.StartAttestation()
+	}
+	return nil
+}
+
+// StopMining terminates the miner, both at the consensus engine level as well as
+// at the block creation level.
+func (s *Ethereum) StopMining() {
+	// Update the thread count within the consensus engine
+	type threaded interface {
+		SetThreads(threads int)
+	}
+	if th, ok := s.engine.(threaded); ok {
+		th.SetThreads(-1)
+	}
+	// Stop the block creating itself
+	s.miner.Stop()
+	// s.StopAttestation()
 }
 
 func (s *Ethereum) StartAttestation() {

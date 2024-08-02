@@ -48,6 +48,7 @@ type EthAPIBackend struct {
 	allowUnprotectedTxs bool
 	eth                 *Ethereum
 	gpo                 *gasprice.Oracle
+	gpp                 *gasprice.Prediction
 }
 
 // ChainConfig returns the active chain configuration.
@@ -261,6 +262,18 @@ func (b *EthAPIBackend) GetEVM(ctx context.Context, msg *core.Message, state *st
 	} else {
 		context = core.NewEVMBlockContext(header, b.eth.BlockChain(), nil)
 	}
+	if b.eth.isTurboEngine {
+		// make sure to use parent state to avoid mix up inner cache
+		parent := b.eth.blockchain.GetHeader(header.ParentHash, header.Number.Uint64()-1)
+		if parent == nil {
+			return nil
+		}
+		parentState, err := b.eth.blockchain.StateAt(parent.Root)
+		if err != nil {
+			return nil
+		}
+		context.AccessFilter = b.eth.turboEngine.CreateEvmAccessFilter(header, parentState)
+	}
 	return vm.NewEVM(context, txContext, state, b.ChainConfig(), *vmConfig)
 }
 
@@ -282,6 +295,10 @@ func (b *EthAPIBackend) SubscribeChainSideEvent(ch chan<- core.ChainSideEvent) e
 
 func (b *EthAPIBackend) SubscribeLogsEvent(ch chan<- []*types.Log) event.Subscription {
 	return b.eth.BlockChain().SubscribeLogsEvent(ch)
+}
+
+func (b *EthAPIBackend) SubscribeBlockPredictStatusEvent(ch chan<- core.NewJustifiedOrFinalizedBlockEvent) event.Subscription {
+	return b.eth.BlockChain().SubscribeNewJustifiedOrFinalizedBlockEvent(ch)
 }
 
 func (b *EthAPIBackend) SendTx(ctx context.Context, signedTx *types.Transaction) error {
@@ -346,6 +363,10 @@ func (b *EthAPIBackend) TxPool() *txpool.TxPool {
 	return b.eth.txPool
 }
 
+func (b *EthAPIBackend) JamIndex() int {
+	return b.eth.TxPool().JamIndex()
+}
+
 func (b *EthAPIBackend) SubscribeNewTxsEvent(ch chan<- core.NewTxsEvent) event.Subscription {
 	return b.eth.txPool.SubscribeTransactions(ch, true)
 }
@@ -376,6 +397,10 @@ func (b *EthAPIBackend) BlobBaseFee(ctx context.Context) *big.Int {
 
 func (b *EthAPIBackend) ChainDb() ethdb.Database {
 	return b.eth.ChainDb()
+}
+
+func (b *EthAPIBackend) PricePrediction(ctx context.Context) ([]uint, error) {
+	return b.gpp.CurrentPrices(), nil
 }
 
 func (b *EthAPIBackend) EventMux() *event.TypeMux {
@@ -431,4 +456,16 @@ func (b *EthAPIBackend) StateAtBlock(ctx context.Context, block *types.Block, re
 
 func (b *EthAPIBackend) StateAtTransaction(ctx context.Context, block *types.Block, txIndex int, reexec uint64) (*types.Transaction, vm.BlockContext, *state.StateDB, tracers.StateReleaseFunc, error) {
 	return b.eth.stateAtTransaction(ctx, block, txIndex, reexec)
+}
+
+func (b *EthAPIBackend) ChainHeaderReader() consensus.ChainHeaderReader {
+	return b.eth.blockchain
+}
+
+func (b *EthAPIBackend) BlockPredictStatus(ctx context.Context, hash common.Hash, number rpc.BlockNumber) (uint8, error) {
+	return b.eth.blockchain.GetBlockPredictStatus(hash, uint64(number)), nil
+}
+
+func (b *EthAPIBackend) LastFinalizedBlockNumber(ctx context.Context) uint64 {
+	return b.eth.blockchain.GetLastFinalizedBlockNumber()
 }

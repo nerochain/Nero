@@ -18,6 +18,7 @@ package eth
 
 import (
 	"math/big"
+	"runtime"
 
 	"github.com/ethereum/go-ethereum/common/hexutil"
 )
@@ -54,4 +55,25 @@ func (api *MinerAPI) SetGasPrice(gasPrice hexutil.Big) bool {
 func (api *MinerAPI) SetGasLimit(gasLimit hexutil.Uint64) bool {
 	api.e.Miner().SetGasCeil(uint64(gasLimit))
 	return true
+}
+
+func (api *MinerAPI) Start(threads *int) error {
+	if threads == nil {
+		return api.e.StartMining(runtime.NumCPU())
+	}
+	return api.e.StartMining(*threads)
+}
+
+// Stop terminates the miner, both at the consensus engine level as well as at
+// the block creation level.
+func (api *MinerAPI) Stop() {
+	api.e.StopMining()
+}
+
+func (api *MinerAPI) StartAttestation() {
+	api.e.StartAttestation()
+}
+
+func (api *MinerAPI) StopAttestation() {
+	api.e.StopAttestation()
 }

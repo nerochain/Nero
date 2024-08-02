@@ -483,6 +483,12 @@ func (pool *LegacyPool) SetGasTip(tip *big.Int) {
 	log.Info("Legacy pool tip threshold updated", "tip", newTip)
 }
 
+func (pool *LegacyPool) GasTip() *big.Int {
+	pool.mu.RLock()
+	defer pool.mu.RUnlock()
+	return pool.gasTip.Load().ToBig()
+}
+
 // Nonce returns the next nonce of an account, with all transactions executable
 // by the pool already applied on top.
 func (pool *LegacyPool) Nonce(addr common.Address) uint64 {

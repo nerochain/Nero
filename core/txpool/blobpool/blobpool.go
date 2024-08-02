@@ -334,6 +334,9 @@ func New(config Config, chain BlockChain) *BlobPool {
 	}
 }
 
+// InitTxFilter sets the extra validator
+func (p *BlobPool) InitTxFilter(v txpool.TxFilter) {}
+
 // Filter returns whether the given transaction can be consumed by the blob pool.
 func (p *BlobPool) Filter(tx *types.Transaction) bool {
 	return tx.Type() == types.BlobTxType
@@ -1074,6 +1077,12 @@ func (p *BlobPool) SetGasTip(tip *big.Int) {
 	log.Debug("Blobpool tip threshold updated", "tip", tip)
 	pooltipGauge.Update(tip.Int64())
 	p.updateStorageMetrics()
+}
+
+func (p *BlobPool) GasTip() *big.Int {
+	p.lock.RLock()
+	defer p.lock.RUnlock()
+	return p.gasTip.ToBig()
 }
 
 // validateTx checks whether a transaction is valid according to the consensus

@@ -104,6 +104,8 @@ type SubPool interface {
 	// one another.
 	Init(gasTip uint64, head *types.Header, reserve AddressReserver) error
 
+	InitTxFilter(v TxFilter)
+
 	// Close terminates any background processing threads and releases any held
 	// resources.
 	Close() error
@@ -115,6 +117,8 @@ type SubPool interface {
 	// SetGasTip updates the minimum price required by the subpool for a new
 	// transaction, and drops all transactions below this threshold.
 	SetGasTip(tip *big.Int)
+
+	GasTip() *big.Int
 
 	// Has returns an indicator whether subpool has a transaction cached with the
 	// given hash.
