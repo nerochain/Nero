@@ -27,6 +27,7 @@ import (
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/crypto/kzg4844"
 	"github.com/ethereum/go-ethereum/eth/protocols/eth"
+	"github.com/ethereum/go-ethereum/eth/protocols/eth2"
 	"github.com/ethereum/go-ethereum/internal/utesting"
 	"github.com/ethereum/go-ethereum/p2p"
 	"github.com/ethereum/go-ethereum/p2p/enode"
@@ -124,21 +125,21 @@ func (s *Suite) TestGetBlockHeaders(t *utesting.T) {
 		t.Fatalf("peering failed: %v", err)
 	}
 	// Send headers request.
-	req := &eth.GetBlockHeadersPacket{
+	req := &eth2.GetBlockHeadersPacket{
 		RequestId: 33,
-		GetBlockHeadersRequest: &eth.GetBlockHeadersRequest{
-			Origin:  eth.HashOrNumber{Hash: s.chain.blocks[1].Hash()},
+		GetBlockHeadersRequest: &eth2.GetBlockHeadersRequest{
+			Origin:  eth2.HashOrNumber{Hash: s.chain.blocks[1].Hash()},
 			Amount:  2,
 			Skip:    1,
 			Reverse: false,
 		},
 	}
 	// Read headers response.
-	if err := conn.Write(ethProto, eth.GetBlockHeadersMsg, req); err != nil {
+	if err := conn.Write(ethProto, eth2.GetBlockHeadersMsg, req); err != nil {
 		t.Fatalf("could not write to connection: %v", err)
 	}
-	headers := new(eth.BlockHeadersPacket)
-	if err := conn.ReadMsg(ethProto, eth.BlockHeadersMsg, &headers); err != nil {
+	headers := new(eth2.BlockHeadersPacket)
+	if err := conn.ReadMsg(ethProto, eth2.BlockHeadersMsg, &headers); err != nil {
 		t.Fatalf("error reading msg: %v", err)
 	}
 	if got, want := headers.RequestId, req.RequestId; got != want {
@@ -168,10 +169,10 @@ concurrently, with different request IDs.`)
 	}
 
 	// Create two different requests.
-	req1 := &eth.GetBlockHeadersPacket{
+	req1 := &eth2.GetBlockHeadersPacket{
 		RequestId: uint64(111),
-		GetBlockHeadersRequest: &eth.GetBlockHeadersRequest{
-			Origin: eth.HashOrNumber{
+		GetBlockHeadersRequest: &eth2.GetBlockHeadersRequest{
+			Origin: eth2.HashOrNumber{
 				Hash: s.chain.blocks[1].Hash(),
 			},
 			Amount:  2,
@@ -179,10 +180,10 @@ concurrently, with different request IDs.`)
 			Reverse: false,
 		},
 	}
-	req2 := &eth.GetBlockHeadersPacket{
+	req2 := &eth2.GetBlockHeadersPacket{
 		RequestId: uint64(222),
-		GetBlockHeadersRequest: &eth.GetBlockHeadersRequest{
-			Origin: eth.HashOrNumber{
+		GetBlockHeadersRequest: &eth2.GetBlockHeadersRequest{
+			Origin: eth2.HashOrNumber{
 				Hash: s.chain.blocks[1].Hash(),
 			},
 			Amount:  4,
@@ -192,23 +193,23 @@ concurrently, with different request IDs.`)
 	}
 
 	// Send both requests.
-	if err := conn.Write(ethProto, eth.GetBlockHeadersMsg, req1); err != nil {
+	if err := conn.Write(ethProto, eth2.GetBlockHeadersMsg, req1); err != nil {
 		t.Fatalf("failed to write to connection: %v", err)
 	}
-	if err := conn.Write(ethProto, eth.GetBlockHeadersMsg, req2); err != nil {
+	if err := conn.Write(ethProto, eth2.GetBlockHeadersMsg, req2); err != nil {
 		t.Fatalf("failed to write to connection: %v", err)
 	}
 
 	// Wait for responses.
-	headers1 := new(eth.BlockHeadersPacket)
-	if err := conn.ReadMsg(ethProto, eth.BlockHeadersMsg, &headers1); err != nil {
+	headers1 := new(eth2.BlockHeadersPacket)
+	if err := conn.ReadMsg(ethProto, eth2.BlockHeadersMsg, &headers1); err != nil {
 		t.Fatalf("error reading block headers msg: %v", err)
 	}
 	if got, want := headers1.RequestId, req1.RequestId; got != want {
 		t.Fatalf("unexpected request id in response: got %d, want %d", got, want)
 	}
-	headers2 := new(eth.BlockHeadersPacket)
-	if err := conn.ReadMsg(ethProto, eth.BlockHeadersMsg, &headers2); err != nil {
+	headers2 := new(eth2.BlockHeadersPacket)
+	if err := conn.ReadMsg(ethProto, eth2.BlockHeadersMsg, &headers2); err != nil {
 		t.Fatalf("error reading block headers msg: %v", err)
 	}
 	if got, want := headers2.RequestId, req2.RequestId; got != want {
@@ -243,19 +244,19 @@ same request ID. The node should handle the request by responding to both reques
 
 	// Create two different requests with the same ID.
 	reqID := uint64(1234)
-	request1 := &eth.GetBlockHeadersPacket{
+	request1 := &eth2.GetBlockHeadersPacket{
 		RequestId: reqID,
-		GetBlockHeadersRequest: &eth.GetBlockHeadersRequest{
-			Origin: eth.HashOrNumber{
+		GetBlockHeadersRequest: &eth2.GetBlockHeadersRequest{
+			Origin: eth2.HashOrNumber{
 				Number: 1,
 			},
 			Amount: 2,
 		},
 	}
-	request2 := &eth.GetBlockHeadersPacket{
+	request2 := &eth2.GetBlockHeadersPacket{
 		RequestId: reqID,
-		GetBlockHeadersRequest: &eth.GetBlockHeadersRequest{
-			Origin: eth.HashOrNumber{
+		GetBlockHeadersRequest: &eth2.GetBlockHeadersRequest{
+			Origin: eth2.HashOrNumber{
 				Number: 33,
 			},
 			Amount: 2,
@@ -263,23 +264,23 @@ same request ID. The node should handle the request by responding to both reques
 	}
 
 	// Send the requests.
-	if err = conn.Write(ethProto, eth.GetBlockHeadersMsg, request1); err != nil {
+	if err = conn.Write(ethProto, eth2.GetBlockHeadersMsg, request1); err != nil {
 		t.Fatalf("failed to write to connection: %v", err)
 	}
-	if err = conn.Write(ethProto, eth.GetBlockHeadersMsg, request2); err != nil {
+	if err = conn.Write(ethProto, eth2.GetBlockHeadersMsg, request2); err != nil {
 		t.Fatalf("failed to write to connection: %v", err)
 	}
 
 	// Wait for the responses.
-	headers1 := new(eth.BlockHeadersPacket)
-	if err := conn.ReadMsg(ethProto, eth.BlockHeadersMsg, &headers1); err != nil {
+	headers1 := new(eth2.BlockHeadersPacket)
+	if err := conn.ReadMsg(ethProto, eth2.BlockHeadersMsg, &headers1); err != nil {
 		t.Fatalf("error reading from connection: %v", err)
 	}
 	if got, want := headers1.RequestId, request1.RequestId; got != want {
 		t.Fatalf("unexpected request id: got %d, want %d", got, want)
 	}
-	headers2 := new(eth.BlockHeadersPacket)
-	if err := conn.ReadMsg(ethProto, eth.BlockHeadersMsg, &headers2); err != nil {
+	headers2 := new(eth2.BlockHeadersPacket)
+	if err := conn.ReadMsg(ethProto, eth2.BlockHeadersMsg, &headers2); err != nil {
 		t.Fatalf("error reading from connection: %v", err)
 	}
 	if got, want := headers2.RequestId, request2.RequestId; got != want {
@@ -311,18 +312,18 @@ and expects a response.`)
 	if err := conn.peer(s.chain, nil); err != nil {
 		t.Fatalf("peering failed: %v", err)
 	}
-	req := &eth.GetBlockHeadersPacket{
-		GetBlockHeadersRequest: &eth.GetBlockHeadersRequest{
-			Origin: eth.HashOrNumber{Number: 0},
+	req := &eth2.GetBlockHeadersPacket{
+		GetBlockHeadersRequest: &eth2.GetBlockHeadersRequest{
+			Origin: eth2.HashOrNumber{Number: 0},
 			Amount: 2,
 		},
 	}
 	// Read headers response.
-	if err := conn.Write(ethProto, eth.GetBlockHeadersMsg, req); err != nil {
+	if err := conn.Write(ethProto, eth2.GetBlockHeadersMsg, req); err != nil {
 		t.Fatalf("could not write to connection: %v", err)
 	}
-	headers := new(eth.BlockHeadersPacket)
-	if err := conn.ReadMsg(ethProto, eth.BlockHeadersMsg, &headers); err != nil {
+	headers := new(eth2.BlockHeadersPacket)
+	if err := conn.ReadMsg(ethProto, eth2.BlockHeadersMsg, &headers); err != nil {
 		t.Fatalf("error reading msg: %v", err)
 	}
 	if got, want := headers.RequestId, req.RequestId; got != want {
@@ -347,19 +348,19 @@ func (s *Suite) TestGetBlockBodies(t *utesting.T) {
 		t.Fatalf("peering failed: %v", err)
 	}
 	// Create block bodies request.
-	req := &eth.GetBlockBodiesPacket{
+	req := &eth2.GetBlockBodiesPacket{
 		RequestId: 55,
-		GetBlockBodiesRequest: eth.GetBlockBodiesRequest{
+		GetBlockBodiesRequest: eth2.GetBlockBodiesRequest{
 			s.chain.blocks[54].Hash(),
 			s.chain.blocks[75].Hash(),
 		},
 	}
-	if err := conn.Write(ethProto, eth.GetBlockBodiesMsg, req); err != nil {
+	if err := conn.Write(ethProto, eth2.GetBlockBodiesMsg, req); err != nil {
 		t.Fatalf("could not write to connection: %v", err)
 	}
 	// Wait for response.
-	resp := new(eth.BlockBodiesPacket)
-	if err := conn.ReadMsg(ethProto, eth.BlockBodiesMsg, &resp); err != nil {
+	resp := new(eth2.BlockBodiesPacket)
+	if err := conn.ReadMsg(ethProto, eth2.BlockBodiesMsg, &resp); err != nil {
 		t.Fatalf("error reading block bodies msg: %v", err)
 	}
 	if got, want := resp.RequestId, req.RequestId; got != want {
@@ -385,7 +386,7 @@ func (s *Suite) TestMaliciousHandshake(t *utesting.T) {
 	var (
 		key, _  = crypto.GenerateKey()
 		pub0    = crypto.FromECDSAPub(&key.PublicKey)[1:]
-		version = eth.ProtocolVersions[0]
+		version = eth2.ProtocolVersions[0]
 	)
 	handshakes := []*protoHandshake{
 		{
@@ -651,16 +652,16 @@ on another peer connection using GetPooledTransactions.`)
 		t.Fatalf("peering failed: %v", err)
 	}
 	// Create and send pooled tx request.
-	req := &eth.GetPooledTransactionsPacket{
+	req := &eth2.GetPooledTransactionsPacket{
 		RequestId:                    1234,
 		GetPooledTransactionsRequest: hashes,
 	}
-	if err = conn.Write(ethProto, eth.GetPooledTransactionsMsg, req); err != nil {
+	if err = conn.Write(ethProto, eth2.GetPooledTransactionsMsg, req); err != nil {
 		t.Fatalf("could not write to conn: %v", err)
 	}
 	// Check that all received transactions match those that were sent to node.
-	msg := new(eth.PooledTransactionsPacket)
-	if err := conn.ReadMsg(ethProto, eth.PooledTransactionsMsg, &msg); err != nil {
+	msg := new(eth2.PooledTransactionsPacket)
+	if err := conn.ReadMsg(ethProto, eth2.PooledTransactionsMsg, &msg); err != nil {
 		t.Fatalf("error reading from connection: %v", err)
 	}
 	if got, want := msg.RequestId, req.RequestId; got != want {
@@ -718,8 +719,8 @@ the transactions using a GetPooledTransactions request.`)
 	}
 
 	// Send announcement.
-	ann := eth.NewPooledTransactionHashesPacket{Types: txTypes, Sizes: sizes, Hashes: hashes}
-	err = conn.Write(ethProto, eth.NewPooledTransactionHashesMsg, ann)
+	ann := eth2.NewPooledTransactionHashesPacket{Types: txTypes, Sizes: sizes, Hashes: hashes}
+	err = conn.Write(ethProto, eth2.NewPooledTransactionHashesMsg, ann)
 	if err != nil {
 		t.Fatalf("failed to write to connection: %v", err)
 	}
@@ -731,14 +732,14 @@ the transactions using a GetPooledTransactions request.`)
 			t.Fatalf("failed to read eth msg: %v", err)
 		}
 		switch msg := msg.(type) {
-		case *eth.GetPooledTransactionsPacket:
+		case *eth2.GetPooledTransactionsPacket:
 			if len(msg.GetPooledTransactionsRequest) != len(hashes) {
 				t.Fatalf("unexpected number of txs requested: wanted %d, got %d", len(hashes), len(msg.GetPooledTransactionsRequest))
 			}
 			return
-		case *eth.NewPooledTransactionHashesPacket:
+		case *eth2.NewPooledTransactionHashesPacket:
 			continue
-		case *eth.TransactionsPacket:
+		case *eth2.TransactionsPacket:
 			continue
 		default:
 			t.Fatalf("unexpected %s", pretty.Sdump(msg))
@@ -806,26 +807,26 @@ func (s *Suite) TestBlobViolations(t *utesting.T) {
 		t2 = s.makeBlobTxs(2, 3, 0x2)
 	)
 	for _, test := range []struct {
-		ann  eth.NewPooledTransactionHashesPacket
-		resp eth.PooledTransactionsResponse
+		ann  eth2.NewPooledTransactionHashesPacket
+		resp eth2.PooledTransactionsResponse
 	}{
 		// Invalid tx size.
 		{
-			ann: eth.NewPooledTransactionHashesPacket{
+			ann: eth2.NewPooledTransactionHashesPacket{
 				Types:  []byte{types.BlobTxType, types.BlobTxType},
 				Sizes:  []uint32{uint32(t1[0].Size()), uint32(t1[1].Size() + 10)},
 				Hashes: []common.Hash{t1[0].Hash(), t1[1].Hash()},
 			},
-			resp: eth.PooledTransactionsResponse(t1),
+			resp: eth2.PooledTransactionsResponse(t1),
 		},
 		// Wrong tx type.
 		{
-			ann: eth.NewPooledTransactionHashesPacket{
+			ann: eth2.NewPooledTransactionHashesPacket{
 				Types:  []byte{types.DynamicFeeTxType, types.BlobTxType},
 				Sizes:  []uint32{uint32(t2[0].Size()), uint32(t2[1].Size())},
 				Hashes: []common.Hash{t2[0].Hash(), t2[1].Hash()},
 			},
-			resp: eth.PooledTransactionsResponse(t2),
+			resp: eth2.PooledTransactionsResponse(t2),
 		},
 	} {
 		conn, err := s.dial()
@@ -835,15 +836,15 @@ func (s *Suite) TestBlobViolations(t *utesting.T) {
 		if err := conn.peer(s.chain, nil); err != nil {
 			t.Fatalf("peering failed: %v", err)
 		}
-		if err := conn.Write(ethProto, eth.NewPooledTransactionHashesMsg, test.ann); err != nil {
+		if err := conn.Write(ethProto, eth2.NewPooledTransactionHashesMsg, test.ann); err != nil {
 			t.Fatalf("sending announcement failed: %v", err)
 		}
-		req := new(eth.GetPooledTransactionsPacket)
-		if err := conn.ReadMsg(ethProto, eth.GetPooledTransactionsMsg, req); err != nil {
+		req := new(eth2.GetPooledTransactionsPacket)
+		if err := conn.ReadMsg(ethProto, eth2.GetPooledTransactionsMsg, req); err != nil {
 			t.Fatalf("reading pooled tx request failed: %v", err)
 		}
-		resp := eth.PooledTransactionsPacket{RequestId: req.RequestId, PooledTransactionsResponse: test.resp}
-		if err := conn.Write(ethProto, eth.PooledTransactionsMsg, resp); err != nil {
+		resp := eth2.PooledTransactionsPacket{RequestId: req.RequestId, PooledTransactionsResponse: test.resp}
+		if err := conn.Write(ethProto, eth2.PooledTransactionsMsg, resp); err != nil {
 			t.Fatalf("writing pooled tx response failed: %v", err)
 		}
 		if code, _, err := conn.Read(); err != nil {

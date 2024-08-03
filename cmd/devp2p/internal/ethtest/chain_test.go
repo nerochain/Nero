@@ -22,7 +22,7 @@ import (
 	"testing"
 
 	"github.com/ethereum/go-ethereum/core/types"
-	"github.com/ethereum/go-ethereum/eth/protocols/eth"
+	"github.com/ethereum/go-ethereum/eth/protocols/eth2"
 	"github.com/ethereum/go-ethereum/p2p"
 	"github.com/stretchr/testify/assert"
 )
@@ -138,13 +138,13 @@ func TestChainGetHeaders(t *testing.T) {
 	}
 
 	var tests = []struct {
-		req      eth.GetBlockHeadersPacket
+		req      eth2.GetBlockHeadersPacket
 		expected []*types.Header
 	}{
 		{
-			req: eth.GetBlockHeadersPacket{
-				GetBlockHeadersRequest: &eth.GetBlockHeadersRequest{
-					Origin:  eth.HashOrNumber{Number: uint64(2)},
+			req: eth2.GetBlockHeadersPacket{
+				GetBlockHeadersRequest: &eth2.GetBlockHeadersRequest{
+					Origin:  eth2.HashOrNumber{Number: uint64(2)},
 					Amount:  uint64(5),
 					Skip:    1,
 					Reverse: false,
@@ -159,9 +159,9 @@ func TestChainGetHeaders(t *testing.T) {
 			},
 		},
 		{
-			req: eth.GetBlockHeadersPacket{
-				GetBlockHeadersRequest: &eth.GetBlockHeadersRequest{
-					Origin:  eth.HashOrNumber{Number: uint64(chain.Len() - 1)},
+			req: eth2.GetBlockHeadersPacket{
+				GetBlockHeadersRequest: &eth2.GetBlockHeadersRequest{
+					Origin:  eth2.HashOrNumber{Number: uint64(chain.Len() - 1)},
 					Amount:  uint64(3),
 					Skip:    0,
 					Reverse: true,
@@ -174,9 +174,9 @@ func TestChainGetHeaders(t *testing.T) {
 			},
 		},
 		{
-			req: eth.GetBlockHeadersPacket{
-				GetBlockHeadersRequest: &eth.GetBlockHeadersRequest{
-					Origin:  eth.HashOrNumber{Hash: chain.Head().Hash()},
+			req: eth2.GetBlockHeadersPacket{
+				GetBlockHeadersRequest: &eth2.GetBlockHeadersRequest{
+					Origin:  eth2.HashOrNumber{Hash: chain.Head().Hash()},
 					Amount:  uint64(1),
 					Skip:    0,
 					Reverse: false,

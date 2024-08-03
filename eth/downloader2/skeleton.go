@@ -14,7 +14,7 @@
 // You should have received a copy of the GNU Lesser General Public License
 // along with the go-ethereum library. If not, see <http://www.gnu.org/licenses/>.
 
-package downloader
+package downloader2
 
 import (
 	"encoding/json"
@@ -27,7 +27,7 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/rawdb"
 	"github.com/ethereum/go-ethereum/core/types"
-	"github.com/ethereum/go-ethereum/eth/protocols/eth"
+	"github.com/ethereum/go-ethereum/eth/protocols/eth2"
 	"github.com/ethereum/go-ethereum/ethdb"
 	"github.com/ethereum/go-ethereum/log"
 )
@@ -682,7 +682,7 @@ func (s *skeleton) assignTasks(success chan *headerResponse, fail chan *headerRe
 	targetTTL := s.peers.rates.TargetTimeout()
 	for _, peer := range s.idles {
 		idlers.peers = append(idlers.peers, peer)
-		idlers.caps = append(idlers.caps, s.peers.rates.Capacity(peer.id, eth.BlockHeadersMsg, targetTTL))
+		idlers.caps = append(idlers.caps, s.peers.rates.Capacity(peer.id, eth2.BlockHeadersMsg, targetTTL))
 	}
 	if len(idlers.peers) == 0 {
 		return
@@ -747,7 +747,7 @@ func (s *skeleton) assignTasks(success chan *headerResponse, fail chan *headerRe
 // on its own goroutine and will deliver on the requested channels.
 func (s *skeleton) executeTask(peer *peerConnection, req *headerRequest) {
 	start := time.Now()
-	resCh := make(chan *eth.Response)
+	resCh := make(chan *eth2.Response)
 
 	// Figure out how many headers to fetch. Usually this will be a full batch,
 	// but for the very tail of the chain, trim the request to the number left.
@@ -781,7 +781,7 @@ func (s *skeleton) executeTask(peer *peerConnection, req *headerRequest) {
 		// Header retrieval timed out, update the metrics
 		peer.log.Warn("Header request timed out, dropping peer", "elapsed", ttl)
 		headerTimeoutMeter.Mark(1)
-		s.peers.rates.Update(peer.id, eth.BlockHeadersMsg, 0, 0)
+		s.peers.rates.Update(peer.id, eth2.BlockHeadersMsg, 0, 0)
 		s.scheduleRevertRequest(req)
 
 		// At this point we either need to drop the offending peer, or we need a
@@ -797,10 +797,10 @@ func (s *skeleton) executeTask(peer *peerConnection, req *headerRequest) {
 
 	case res := <-resCh:
 		// Headers successfully retrieved, update the metrics
-		headers := *res.Res.(*eth.BlockHeadersRequest)
+		headers := *res.Res.(*eth2.BlockHeadersRequest)
 
 		headerReqTimer.Update(time.Since(start))
-		s.peers.rates.Update(peer.id, eth.BlockHeadersMsg, res.Time, len(headers))
+		s.peers.rates.Update(peer.id, eth2.BlockHeadersMsg, res.Time, len(headers))
 
 		// Cross validate the headers with the requests
 		switch {

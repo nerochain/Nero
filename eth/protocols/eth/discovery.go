@@ -1,4 +1,4 @@
-// Copyright 2020 The go-ethereum Authors
+// Copyright 2019 The go-ethereum Authors
 // This file is part of the go-ethereum library.
 //
 // The go-ethereum library is free software: you can redistribute it and/or modify
@@ -59,8 +59,7 @@ func StartENRUpdater(chain *core.BlockChain, ln *enode.LocalNode) {
 
 // currentENREntry constructs an `eth` ENR entry based on the current state of the chain.
 func currentENREntry(chain *core.BlockChain) *enrEntry {
-	head := chain.CurrentHeader()
 	return &enrEntry{
-		ForkID: forkid.NewID(chain.Config(), chain.Genesis(), head.Number.Uint64(), head.Time),
+		ForkID: forkid.NewID(chain.Config(), chain.Genesis(), chain.CurrentHeader().Number.Uint64(), chain.CurrentHeader().Time),
 	}
 }

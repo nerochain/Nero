@@ -440,9 +440,31 @@ func (bc *BlockChain) TrieDB() *triedb.Database {
 	return bc.triedb
 }
 
+// TrieNode retrieves a blob of data associated with a trie node
+// either from ephemeral in-memory cache, or from persistent storage.
+func (bc *BlockChain) TrieNode(hash common.Hash) ([]byte, error) {
+	reader, err := bc.stateCache.TrieDB().Reader(bc.CurrentBlock().Root)
+	if err != nil {
+		return nil, err
+	}
+	return reader.Node(common.Hash{}, nil, hash)
+}
+
 // HeaderChain returns the underlying header chain.
 func (bc *BlockChain) HeaderChain() *HeaderChain {
 	return bc.hc
+}
+
+// SetTxLookupLimit is responsible for updating the txlookup limit to the
+// original one stored in db if the new mismatches with the old one.
+func (bc *BlockChain) SetTxLookupLimit(limit uint64) {
+	bc.txLookupLimit = limit
+}
+
+// TxLookupLimit retrieves the txlookup limit used by blockchain to prune
+// stale transaction indices.
+func (bc *BlockChain) TxLookupLimit() uint64 {
+	return bc.txLookupLimit
 }
 
 // SubscribeRemovedLogsEvent registers a subscription of RemovedLogsEvent.

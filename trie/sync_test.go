@@ -196,7 +196,7 @@ func testIterativeSync(t *testing.T, count int, bypath bool, scheme string) {
 				if err != nil {
 					t.Fatalf("failed to retrieve node data for hash %x: %v", element.hash, err)
 				}
-				results[i] = NodeSyncResult{element.path, data}
+				results[i] = NodeSyncResult{element.path, nil, data}
 			}
 		} else {
 			for i, element := range elements {
@@ -204,7 +204,7 @@ func testIterativeSync(t *testing.T, count int, bypath bool, scheme string) {
 				if err != nil {
 					t.Fatalf("failed to retrieve node data for path %x: %v", element.path, err)
 				}
-				results[i] = NodeSyncResult{element.path, data}
+				results[i] = NodeSyncResult{element.path, nil, data}
 			}
 		}
 		for _, result := range results {
@@ -271,7 +271,7 @@ func testIterativeDelayedSync(t *testing.T, scheme string) {
 			if err != nil {
 				t.Fatalf("failed to retrieve node data for %x: %v", element.hash, err)
 			}
-			results[i] = NodeSyncResult{element.path, data}
+			results[i] = NodeSyncResult{element.path, nil, data}
 		}
 		for _, result := range results {
 			if err := sched.ProcessNode(result); err != nil {
@@ -340,7 +340,7 @@ func testIterativeRandomSync(t *testing.T, count int, scheme string) {
 			if err != nil {
 				t.Fatalf("failed to retrieve node data for %x: %v", element.hash, err)
 			}
-			results = append(results, NodeSyncResult{path, data})
+			results = append(results, NodeSyncResult{path, nil, data})
 		}
 		// Feed the retrieved results back and queue new tasks
 		for _, result := range results {
@@ -407,7 +407,7 @@ func testIterativeRandomDelayedSync(t *testing.T, scheme string) {
 			if err != nil {
 				t.Fatalf("failed to retrieve node data for %x: %v", element.hash, err)
 			}
-			results = append(results, NodeSyncResult{path, data})
+			results = append(results, NodeSyncResult{path, nil, data})
 
 			if len(results) >= cap(results) {
 				break
@@ -484,7 +484,7 @@ func testDuplicateAvoidanceSync(t *testing.T, scheme string) {
 			}
 			requested[element.hash] = struct{}{}
 
-			results[i] = NodeSyncResult{element.path, data}
+			results[i] = NodeSyncResult{element.path, nil, data}
 		}
 		for _, result := range results {
 			if err := sched.ProcessNode(result); err != nil {
@@ -555,7 +555,7 @@ func testIncompleteSync(t *testing.T, scheme string) {
 			if err != nil {
 				t.Fatalf("failed to retrieve node data for %x: %v", element.hash, err)
 			}
-			results[i] = NodeSyncResult{element.path, data}
+			results[i] = NodeSyncResult{element.path, nil, data}
 		}
 		// Process each of the trie nodes
 		for _, result := range results {
@@ -646,7 +646,7 @@ func testSyncOrdering(t *testing.T, scheme string) {
 			if err != nil {
 				t.Fatalf("failed to retrieve node data for %x: %v", element.hash, err)
 			}
-			results[i] = NodeSyncResult{element.path, data}
+			results[i] = NodeSyncResult{element.path, nil, data}
 		}
 		for _, result := range results {
 			if err := sched.ProcessNode(result); err != nil {
@@ -716,7 +716,7 @@ func syncWithHookWriter(t *testing.T, root common.Hash, db ethdb.Database, srcDb
 			if err != nil {
 				t.Fatalf("failed to retrieve node data for hash %x: %v", element.hash, err)
 			}
-			results[i] = NodeSyncResult{element.path, data}
+			results[i] = NodeSyncResult{element.path, nil, data}
 		}
 		for index, result := range results {
 			if err := sched.ProcessNode(result); err != nil {

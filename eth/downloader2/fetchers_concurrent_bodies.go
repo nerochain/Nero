@@ -14,13 +14,13 @@
 // You should have received a copy of the GNU Lesser General Public License
 // along with the go-ethereum library. If not, see <http://www.gnu.org/licenses/>.
 
-package downloader
+package downloader2
 
 import (
 	"time"
 
 	"github.com/ethereum/go-ethereum/common"
-	"github.com/ethereum/go-ethereum/eth/protocols/eth"
+	"github.com/ethereum/go-ethereum/eth/protocols/eth2"
 	"github.com/ethereum/go-ethereum/log"
 )
 
@@ -73,7 +73,7 @@ func (q *bodyQueue) unreserve(peer string) int {
 
 // request is responsible for converting a generic fetch request into a body
 // one and sending it to the remote peer for fulfillment.
-func (q *bodyQueue) request(peer *peerConnection, req *fetchRequest, resCh chan *eth.Response) (*eth.Request, error) {
+func (q *bodyQueue) request(peer *peerConnection, req *fetchRequest, resCh chan *eth2.Response) (*eth2.Request, error) {
 	peer.log.Trace("Requesting new batch of bodies", "count", len(req.Headers), "from", req.Headers[0].Number)
 	if q.bodyFetchHook != nil {
 		q.bodyFetchHook(req.Headers)
@@ -87,8 +87,8 @@ func (q *bodyQueue) request(peer *peerConnection, req *fetchRequest, resCh chan 
 
 // deliver is responsible for taking a generic response packet from the concurrent
 // fetcher, unpacking the body data and delivering it to the downloader's queue.
-func (q *bodyQueue) deliver(peer *peerConnection, packet *eth.Response) (int, error) {
-	txs, uncles, withdrawals := packet.Res.(*eth.BlockBodiesResponse).Unpack()
+func (q *bodyQueue) deliver(peer *peerConnection, packet *eth2.Response) (int, error) {
+	txs, uncles, withdrawals := packet.Res.(*eth2.BlockBodiesResponse).Unpack()
 	hashsets := packet.Meta.([][]common.Hash) // {txs hashes, uncle hashes, withdrawal hashes}
 
 	accepted, err := q.queue.DeliverBodies(peer.id, txs, hashsets[0], uncles, hashsets[1], withdrawals, hashsets[2])

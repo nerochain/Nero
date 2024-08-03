@@ -14,7 +14,7 @@
 // You should have received a copy of the GNU Lesser General Public License
 // along with the go-ethereum library. If not, see <http://www.gnu.org/licenses/>.
 
-package downloader
+package downloader2
 
 import (
 	"errors"
@@ -23,7 +23,7 @@ import (
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/prque"
-	"github.com/ethereum/go-ethereum/eth/protocols/eth"
+	"github.com/ethereum/go-ethereum/eth/protocols/eth2"
 	"github.com/ethereum/go-ethereum/log"
 )
 
@@ -65,12 +65,12 @@ type typedQueue interface {
 
 	// request is responsible for converting a generic fetch request into a typed
 	// one and sending it to the remote peer for fulfillment.
-	request(peer *peerConnection, req *fetchRequest, resCh chan *eth.Response) (*eth.Request, error)
+	request(peer *peerConnection, req *fetchRequest, resCh chan *eth2.Response) (*eth2.Request, error)
 
 	// deliver is responsible for taking a generic response packet from the
 	// concurrent fetcher, unpacking the type specific data and delivering
 	// it to the downloader's queue.
-	deliver(peer *peerConnection, packet *eth.Response) (int, error)
+	deliver(peer *peerConnection, packet *eth2.Response) (int, error)
 }
 
 // concurrentFetch iteratively downloads scheduled block parts, taking available
@@ -78,10 +78,10 @@ type typedQueue interface {
 // or timeouts.
 func (d *Downloader) concurrentFetch(queue typedQueue) error {
 	// Create a delivery channel to accept responses from all peers
-	responses := make(chan *eth.Response)
+	responses := make(chan *eth2.Response)
 
 	// Track the currently active requests and their timeout order
-	pending := make(map[string]*eth.Request)
+	pending := make(map[string]*eth2.Request)
 	defer func() {
 		// Abort all requests on sync cycle cancellation. The requests may still
 		// be fulfilled by the remote side, but the dispatcher will not wait to
@@ -90,8 +90,8 @@ func (d *Downloader) concurrentFetch(queue typedQueue) error {
 			req.Close()
 		}
 	}()
-	ordering := make(map[*eth.Request]int)
-	timeouts := prque.New[int64, *eth.Request](func(data *eth.Request, index int) {
+	ordering := make(map[*eth2.Request]int)
+	timeouts := prque.New[int64, *eth2.Request](func(data *eth2.Request, index int) {
 		ordering[data] = index
 	})
 
@@ -106,7 +106,7 @@ func (d *Downloader) concurrentFetch(queue typedQueue) error {
 	// all trace of a timed out request is not good. We also can't just cancel
 	// the pending request altogether as that would prevent a late response from
 	// being delivered, thus never unblocking the peer.
-	stales := make(map[string]*eth.Request)
+	stales := make(map[string]*eth2.Request)
 	defer func() {
 		// Abort all requests on sync cycle cancellation. The requests may still
 		// be fulfilled by the remote side, but the dispatcher will not wait to

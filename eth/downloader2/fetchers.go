@@ -14,14 +14,14 @@
 // You should have received a copy of the GNU Lesser General Public License
 // along with the go-ethereum library. If not, see <http://www.gnu.org/licenses/>.
 
-package downloader
+package downloader2
 
 import (
 	"time"
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
-	"github.com/ethereum/go-ethereum/eth/protocols/eth"
+	"github.com/ethereum/go-ethereum/eth/protocols/eth2"
 )
 
 // fetchHeadersByHash is a blocking version of Peer.RequestHeadersByHash which
@@ -30,7 +30,7 @@ import (
 func (d *Downloader) fetchHeadersByHash(p *peerConnection, hash common.Hash, amount int, skip int, reverse bool) ([]*types.Header, []common.Hash, error) {
 	// Create the response sink and send the network request
 	start := time.Now()
-	resCh := make(chan *eth.Response)
+	resCh := make(chan *eth2.Response)
 
 	req, err := p.peer.RequestHeadersByHash(hash, amount, skip, reverse, resCh)
 	if err != nil {
@@ -58,13 +58,13 @@ func (d *Downloader) fetchHeadersByHash(p *peerConnection, hash common.Hash, amo
 	case res := <-resCh:
 		// Headers successfully retrieved, update the metrics
 		headerReqTimer.Update(time.Since(start))
-		headerInMeter.Mark(int64(len(*res.Res.(*eth.BlockHeadersRequest))))
+		headerInMeter.Mark(int64(len(*res.Res.(*eth2.BlockHeadersRequest))))
 
 		// Don't reject the packet even if it turns out to be bad, downloader will
 		// disconnect the peer on its own terms. Simply delivery the headers to
 		// be processed by the caller
 		res.Done <- nil
 
-		return *res.Res.(*eth.BlockHeadersRequest), res.Meta.([]common.Hash), nil
+		return *res.Res.(*eth2.BlockHeadersRequest), res.Meta.([]common.Hash), nil
 	}
 }

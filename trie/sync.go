@@ -138,6 +138,7 @@ type codeRequest struct {
 // NodeSyncResult is a response with requested trie node along with its node path.
 type NodeSyncResult struct {
 	Path string // Path of the originally unknown trie node
+	Hash *common.Hash
 	Data []byte // Data content of the retrieved trie node
 }
 
@@ -258,13 +259,14 @@ func (batch *syncMemBatch) delNode(owner common.Hash, path []byte) {
 // unknown trie hashes to retrieve, accepts node data associated with said hashes
 // and reconstructs the trie step by step until all is done.
 type Sync struct {
-	scheme   string                       // Node scheme descriptor used in database.
-	database ethdb.KeyValueReader         // Persistent database to check for existing entries
-	membatch *syncMemBatch                // Memory buffer to avoid frequent database writes
-	nodeReqs map[string]*nodeRequest      // Pending requests pertaining to a trie node path
-	codeReqs map[common.Hash]*codeRequest // Pending requests pertaining to a code hash
-	queue    *prque.Prque[int64, any]     // Priority queue with the pending requests
-	fetches  map[int]int                  // Number of active fetches per trie node depth
+	scheme        string                       // Node scheme descriptor used in database.
+	database      ethdb.KeyValueReader         // Persistent database to check for existing entries
+	membatch      *syncMemBatch                // Memory buffer to avoid frequent database writes
+	nodeReqs      map[string]*nodeRequest      // Pending requests pertaining to a trie node path
+	nodeHashPaths map[common.Hash]string       // A trie node hashes pertaining to a trie node path
+	codeReqs      map[common.Hash]*codeRequest // Pending requests pertaining to a code hash
+	queue         *prque.Prque[int64, any]     // Priority queue with the pending requests
+	fetches       map[int]int                  // Number of active fetches per trie node depth
 }
 
 // NewSync creates a new trie data download scheduler.
@@ -416,6 +418,11 @@ func (s *Sync) ProcessCode(result CodeSyncResult) error {
 // be treated as "non-requested" item or "already-processed" item but
 // there is no downside.
 func (s *Sync) ProcessNode(result NodeSyncResult) error {
+	if result.Hash != nil {
+		if path, ok := s.nodeHashPaths[*result.Hash]; ok {
+			result.Path = path
+		}
+	}
 	// If the trie node was not requested or it's already processed, bail out
 	req := s.nodeReqs[result.Path]
 	if req == nil {
@@ -505,6 +512,7 @@ func (s *Sync) Pending() int {
 // and only a parent reference added to the old one.
 func (s *Sync) scheduleNodeRequest(req *nodeRequest) {
 	s.nodeReqs[string(req.path)] = req
+	s.nodeHashPaths[req.hash] = string(req.path)
 
 	// Schedule the request for future retrieval. This queue is shared
 	// by both node requests and code requests.

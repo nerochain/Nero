@@ -17,9 +17,20 @@
 package eth
 
 import (
+	"math/big"
+	"time"
+
 	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/core/rawdb"
 	"github.com/ethereum/go-ethereum/core/txpool"
+	"github.com/ethereum/go-ethereum/eth/downloader"
 	"github.com/ethereum/go-ethereum/eth/protocols/eth"
+	"github.com/ethereum/go-ethereum/log"
+)
+
+const (
+	forceSyncCycle      = 10 * time.Second // Time interval to force syncs, even if few peers are available
+	defaultMinSyncPeers = 5                // Amount of peers desired to start syncing
 )
 
 // syncTransactions starts sending all currently pending transactions to the given peer.
@@ -34,4 +45,188 @@ func (h *handler) syncTransactions(p *eth.Peer) {
 		return
 	}
 	p.AsyncSendPooledTransactionHashes(hashes)
+}
+
+// chainSyncer coordinates blockchain sync components.
+type chainSyncer struct {
+	handler     *handler
+	force       *time.Timer
+	forced      bool // true when force timer fired
+	peerEventCh chan struct{}
+	doneCh      chan error // non-nil when sync is running
+}
+
+// chainSyncOp is a scheduled sync operation.
+type chainSyncOp struct {
+	mode downloader.SyncMode
+	peer *eth.Peer
+	td   *big.Int
+	head common.Hash
+}
+
+// newChainSyncer creates a chainSyncer.
+func newChainSyncer(handler *handler) *chainSyncer {
+	return &chainSyncer{
+		handler:     handler,
+		peerEventCh: make(chan struct{}),
+	}
+}
+
+// handlePeerEvent notifies the syncer about a change in the peer set.
+// This is called for new peers and every time a peer announces a new
+// chain head.
+func (cs *chainSyncer) handlePeerEvent(peer *eth.Peer) bool {
+	select {
+	case cs.peerEventCh <- struct{}{}:
+		return true
+	case <-cs.handler.quitSync:
+		return false
+	}
+}
+
+// loop runs in its own goroutine and launches the sync when necessary.
+func (cs *chainSyncer) loop() {
+	defer cs.handler.wg.Done()
+
+	cs.handler.blockFetcher.Start()
+	cs.handler.txFetcher.Start()
+	defer cs.handler.blockFetcher.Stop()
+	defer cs.handler.txFetcher.Stop()
+	defer cs.handler.downloader.Terminate()
+
+	// The force timer lowers the peer count threshold down to one when it fires.
+	// This ensures we'll always start sync even if there aren't enough peers.
+	cs.force = time.NewTimer(forceSyncCycle)
+	defer cs.force.Stop()
+
+	for {
+		if op := cs.nextSyncOp(); op != nil {
+			cs.startSync(op)
+		}
+		select {
+		case <-cs.peerEventCh:
+			// Peer information changed, recheck.
+		case <-cs.doneCh:
+			cs.doneCh = nil
+			cs.force.Reset(forceSyncCycle)
+			cs.forced = false
+		case <-cs.force.C:
+			cs.forced = true
+
+		case <-cs.handler.quitSync:
+			// Disable all insertion on the blockchain. This needs to happen before
+			// terminating the downloader because the downloader waits for blockchain
+			// inserts, and these can take a long time to finish.
+			cs.handler.chain.StopInsert()
+			cs.handler.downloader.Terminate()
+			if cs.doneCh != nil {
+				<-cs.doneCh
+			}
+			return
+		}
+	}
+}
+
+// nextSyncOp determines whether sync is required at this time.
+func (cs *chainSyncer) nextSyncOp() *chainSyncOp {
+	if cs.doneCh != nil {
+		return nil // Sync already running.
+	}
+
+	// Ensure we're at minimum peer count.
+	minPeers := defaultMinSyncPeers
+	if cs.forced {
+		minPeers = 1
+	} else if minPeers > cs.handler.maxPeers {
+		minPeers = cs.handler.maxPeers
+	}
+	if cs.handler.peers.len() < minPeers {
+		return nil
+	}
+	// We have enough peers, check TD
+	peer := cs.handler.peers.peerWithHighestTD()
+	if peer == nil {
+		return nil
+	}
+	mode, ourTD := cs.modeAndLocalHead()
+	op := peerToSyncOp(mode, peer)
+	if op.td.Cmp(ourTD) <= 0 {
+		return nil // We're in sync.
+	}
+	return op
+}
+
+func peerToSyncOp(mode downloader.SyncMode, p *eth.Peer) *chainSyncOp {
+	peerHead, peerTD := p.Head()
+	return &chainSyncOp{mode: mode, peer: p, td: peerTD, head: peerHead}
+}
+
+func (cs *chainSyncer) modeAndLocalHead() (downloader.SyncMode, *big.Int) {
+	// If we're in fast sync mode, return that directly
+	if cs.handler.snapSync.Load() {
+		block := cs.handler.chain.CurrentSnapBlock()
+		td := cs.handler.chain.GetTd(block.Hash(), block.Number.Uint64())
+		return downloader.SnapSync, td
+	}
+	// Nope, we're really full syncing
+	head := cs.handler.chain.CurrentBlock()
+	td := cs.handler.chain.GetTd(head.Hash(), head.Number.Uint64())
+	return downloader.FullSync, td
+}
+
+// startSync launches doSync in a new goroutine.
+func (cs *chainSyncer) startSync(op *chainSyncOp) {
+	cs.doneCh = make(chan error, 1)
+	go func() { cs.doneCh <- cs.handler.doSync(op) }()
+}
+
+// doSync synchronizes the local blockchain with a remote peer.
+func (h *handler) doSync(op *chainSyncOp) error {
+	if op.mode == downloader.SnapSync {
+		// Before launch the fast sync, we have to ensure user uses the same
+		// txlookup limit.
+		// The main concern here is: during the fast sync Geth won't index the
+		// block(generate tx indices) before the HEAD-limit. But if user changes
+		// the limit in the next fast sync(e.g. user kill Geth manually and
+		// restart) then it will be hard for Geth to figure out the oldest block
+		// has been indexed. So here for the user-experience wise, it's non-optimal
+		// that user can't change limit during the fast sync. If changed, Geth
+		// will just blindly use the original one.
+		limit := h.chain.TxLookupLimit()
+		if stored := rawdb.ReadFastTxLookupLimit(h.database); stored == nil {
+			rawdb.WriteFastTxLookupLimit(h.database, limit)
+		} else if *stored != limit {
+			h.chain.SetTxLookupLimit(*stored)
+			log.Warn("Update txLookup limit", "provided", limit, "updated", *stored)
+		}
+	}
+	// Run the sync cycle, and disable fast sync if we're past the pivot block
+	err := h.downloader.Synchronise(op.peer.ID(), op.head, op.td, op.mode)
+	if err != nil {
+		return err
+	}
+	if h.snapSync.Load() {
+		log.Info("Snap sync complete, auto disabling")
+		h.snapSync.Store(false)
+	}
+	// If we've successfully finished a sync cycle and passed any required checkpoint,
+	// enable accepting transactions from the network.
+	head := h.chain.CurrentBlock()
+	if head.Number.Uint64() >= h.checkpointNumber {
+		// Checkpoint passed, sanity check the timestamp to have a fallback mechanism
+		// for non-checkpointed (number = 0) private networks.
+		if head.Time >= uint64(time.Now().AddDate(0, -1, 0).Unix()) {
+			h.synced.Store(true)
+		}
+	}
+	if head.Number.Uint64() > 0 {
+		// We've completed a sync cycle, notify all peers of new state. This path is
+		// essential in star-topology networks where a gateway node needs to notify
+		// all its out-of-date peers of the availability of a new block. This failure
+		// scenario will most often crop up in private and hackathon networks with
+		// degenerate connectivity, but it should be healthy for the mainnet too to
+		// more reliably update peers or the local TD state.
+		h.BroadcastBlock(h.chain.GetBlock(head.Hash(), head.Number.Uint64()), false)
+	}
+	return nil
 }

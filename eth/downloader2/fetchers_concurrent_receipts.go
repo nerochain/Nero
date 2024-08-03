@@ -14,13 +14,13 @@
 // You should have received a copy of the GNU Lesser General Public License
 // along with the go-ethereum library. If not, see <http://www.gnu.org/licenses/>.
 
-package downloader
+package downloader2
 
 import (
 	"time"
 
 	"github.com/ethereum/go-ethereum/common"
-	"github.com/ethereum/go-ethereum/eth/protocols/eth"
+	"github.com/ethereum/go-ethereum/eth/protocols/eth2"
 	"github.com/ethereum/go-ethereum/log"
 )
 
@@ -73,7 +73,7 @@ func (q *receiptQueue) unreserve(peer string) int {
 
 // request is responsible for converting a generic fetch request into a receipt
 // one and sending it to the remote peer for fulfillment.
-func (q *receiptQueue) request(peer *peerConnection, req *fetchRequest, resCh chan *eth.Response) (*eth.Request, error) {
+func (q *receiptQueue) request(peer *peerConnection, req *fetchRequest, resCh chan *eth2.Response) (*eth2.Request, error) {
 	peer.log.Trace("Requesting new batch of receipts", "count", len(req.Headers), "from", req.Headers[0].Number)
 	if q.receiptFetchHook != nil {
 		q.receiptFetchHook(req.Headers)
@@ -87,8 +87,8 @@ func (q *receiptQueue) request(peer *peerConnection, req *fetchRequest, resCh ch
 
 // deliver is responsible for taking a generic response packet from the concurrent
 // fetcher, unpacking the receipt data and delivering it to the downloader's queue.
-func (q *receiptQueue) deliver(peer *peerConnection, packet *eth.Response) (int, error) {
-	receipts := *packet.Res.(*eth.ReceiptsResponse)
+func (q *receiptQueue) deliver(peer *peerConnection, packet *eth2.Response) (int, error) {
+	receipts := *packet.Res.(*eth2.ReceiptsResponse)
 	hashes := packet.Meta.([]common.Hash) // {receipt hashes}
 
 	accepted, err := q.queue.DeliverReceipts(peer.id, receipts, hashes)

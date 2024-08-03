@@ -24,7 +24,7 @@ import (
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
-	"github.com/ethereum/go-ethereum/eth/protocols/eth"
+	"github.com/ethereum/go-ethereum/eth/protocols/eth2"
 	"github.com/ethereum/go-ethereum/internal/utesting"
 )
 
@@ -51,7 +51,7 @@ func (s *Suite) sendTxs(t *utesting.T, txs []*types.Transaction) error {
 		return fmt.Errorf("peering failed: %v", err)
 	}
 
-	if err = sendConn.Write(ethProto, eth.TransactionsMsg, eth.TransactionsPacket(txs)); err != nil {
+	if err = sendConn.Write(ethProto, eth2.TransactionsMsg, eth2.TransactionsPacket(txs)); err != nil {
 		return fmt.Errorf("failed to write message to connection: %v", err)
 	}
 
@@ -67,20 +67,20 @@ func (s *Suite) sendTxs(t *utesting.T, txs []*types.Transaction) error {
 			return fmt.Errorf("failed to read from connection: %w", err)
 		}
 		switch msg := msg.(type) {
-		case *eth.TransactionsPacket:
+		case *eth2.TransactionsPacket:
 			for _, tx := range *msg {
 				got[tx.Hash()] = true
 			}
-		case *eth.NewPooledTransactionHashesPacket:
+		case *eth2.NewPooledTransactionHashesPacket:
 			for _, hash := range msg.Hashes {
 				got[hash] = true
 			}
-		case *eth.GetBlockHeadersPacket:
+		case *eth2.GetBlockHeadersPacket:
 			headers, err := s.chain.GetHeaders(msg)
 			if err != nil {
 				t.Logf("invalid GetBlockHeaders request: %v", err)
 			}
-			recvConn.Write(ethProto, eth.BlockHeadersMsg, &eth.BlockHeadersPacket{
+			recvConn.Write(ethProto, eth2.BlockHeadersMsg, &eth2.BlockHeadersPacket{
 				RequestId:           msg.RequestId,
 				BlockHeadersRequest: headers,
 			})
@@ -128,7 +128,7 @@ func (s *Suite) sendInvalidTxs(t *utesting.T, txs []*types.Transaction) error {
 	}
 	recvConn.SetDeadline(time.Now().Add(timeout))
 
-	if err = sendConn.Write(ethProto, eth.TransactionsMsg, txs); err != nil {
+	if err = sendConn.Write(ethProto, eth2.TransactionsMsg, txs); err != nil {
 		return fmt.Errorf("failed to write message to connection: %w", err)
 	}
 
@@ -150,24 +150,24 @@ func (s *Suite) sendInvalidTxs(t *utesting.T, txs []*types.Transaction) error {
 		}
 
 		switch msg := msg.(type) {
-		case *eth.TransactionsPacket:
+		case *eth2.TransactionsPacket:
 			for _, tx := range txs {
 				if _, ok := invalids[tx.Hash()]; ok {
 					return fmt.Errorf("received bad tx: %s", tx.Hash())
 				}
 			}
-		case *eth.NewPooledTransactionHashesPacket:
+		case *eth2.NewPooledTransactionHashesPacket:
 			for _, hash := range msg.Hashes {
 				if _, ok := invalids[hash]; ok {
 					return fmt.Errorf("received bad tx: %s", hash)
 				}
 			}
-		case *eth.GetBlockHeadersPacket:
+		case *eth2.GetBlockHeadersPacket:
 			headers, err := s.chain.GetHeaders(msg)
 			if err != nil {
 				t.Logf("invalid GetBlockHeaders request: %v", err)
 			}
-			recvConn.Write(ethProto, eth.BlockHeadersMsg, &eth.BlockHeadersPacket{
+			recvConn.Write(ethProto, eth2.BlockHeadersMsg, &eth2.BlockHeadersPacket{
 				RequestId:           msg.RequestId,
 				BlockHeadersRequest: headers,
 			})

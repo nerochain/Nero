@@ -1,4 +1,4 @@
-// Copyright 2020 The go-ethereum Authors
+// Copyright 2014 The go-ethereum Authors
 // This file is part of the go-ethereum library.
 //
 // The go-ethereum library is free software: you can redistribute it and/or modify
@@ -27,7 +27,7 @@ import (
 )
 
 // Tests that handshake failures are detected and reported correctly.
-func TestHandshake68(t *testing.T) { testHandshake(t, ETH68) }
+func TestHandshake66(t *testing.T) { testHandshake(t, ETH66) }
 
 func testHandshake(t *testing.T, protocol uint) {
 	t.Parallel()
@@ -40,7 +40,7 @@ func testHandshake(t *testing.T, protocol uint) {
 		genesis = backend.chain.Genesis()
 		head    = backend.chain.CurrentBlock()
 		td      = backend.chain.GetTd(head.Hash(), head.Number.Uint64())
-		forkID  = forkid.NewID(backend.chain.Config(), backend.chain.Genesis(), backend.chain.CurrentHeader().Number.Uint64(), backend.chain.CurrentHeader().Time)
+		forkID  = forkid.NewID(backend.chain.Config(), backend.chain.Genesis(), backend.chain.CurrentHeader().Number.Uint64(), backend.chain.CurrentBlock().Time)
 	)
 	tests := []struct {
 		code uint64

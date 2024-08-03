@@ -41,6 +41,7 @@ import (
 	"github.com/ethereum/go-ethereum/metrics"
 	"github.com/ethereum/go-ethereum/p2p"
 	"github.com/ethereum/go-ethereum/p2p/enode"
+	"github.com/ethereum/go-ethereum/trie"
 	"github.com/ethereum/go-ethereum/triedb/pathdb"
 )
 
@@ -103,23 +104,32 @@ type handler struct {
 	snapSync atomic.Bool // Flag whether snap sync is enabled (gets disabled if we already have blocks)
 	synced   atomic.Bool // Flag whether we're considered synchronised (enables transaction processing)
 
+	checkpointNumber uint64      // Block number for the sync progress validator to cross reference
+	checkpointHash   common.Hash // Block hash for the sync progress validator to cross reference
+
 	database ethdb.Database
 	txpool   txPool
 	chain    *core.BlockChain
 	maxPeers int
 
-	downloader *downloader.Downloader
-	txFetcher  *fetcher.TxFetcher
-	peers      *peerSet
+	downloader   *downloader.Downloader
+	stateBloom   *trie.SyncBloom
+	blockFetcher *fetcher.BlockFetcher
+	txFetcher    *fetcher.TxFetcher
+	peers        *peerSet
 
-	eventMux *event.TypeMux
-	txsCh    chan core.NewTxsEvent
-	txsSub   event.Subscription
+	eventMux      *event.TypeMux
+	txsCh         chan core.NewTxsEvent
+	txsSub        event.Subscription
+	minedBlockSub *event.TypeMuxSubscription
+
+	whitelist map[uint64]common.Hash
 
 	requiredBlocks map[uint64]common.Hash
 
 	// channels for fetcher, syncer, txsyncLoop
-	quitSync chan struct{}
+	quitSync  chan struct{}
+	chainSync *chainSyncer
 
 	wg sync.WaitGroup
 
@@ -180,7 +190,42 @@ func newHandler(config *handlerConfig) (*handler, error) {
 		return nil, errors.New("snap sync not supported with snapshots disabled")
 	}
 	// Construct the downloader (long sync)
-	h.downloader = downloader.New(config.Database, h.eventMux, h.chain, h.removePeer, h.enableSyncedFeatures)
+	h.downloader = downloader.New(h.checkpointNumber, config.Database, h.stateBloom, h.eventMux, h.chain, nil, h.removePeer)
+
+	// Construct the fetcher (short sync)
+	validator := func(header *types.Header) error {
+		return h.chain.Engine().VerifyHeader(h.chain, header)
+	}
+	heighter := func() uint64 {
+		return h.chain.CurrentBlock().Number.Uint64()
+	}
+	inserter := func(blocks types.Blocks) (int, error) {
+		// If sync hasn't reached the checkpoint yet, deny importing weird blocks.
+		//
+		// Ideally we would also compare the head block's timestamp and similarly reject
+		// the propagated block if the head is too old. Unfortunately there is a corner
+		// case when starting new networks, where the genesis might be ancient (0 unix)
+		// which would prevent full nodes from accepting it.
+		if h.chain.CurrentBlock().Number.Uint64() < h.checkpointNumber {
+			log.Warn("Unsynced yet, discarded propagated block", "number", blocks[0].Number(), "hash", blocks[0].Hash())
+			return 0, nil
+		}
+		// If fast sync is running, deny importing weird blocks. This is a problematic
+		// clause when starting up a new network, because fast-syncing miners might not
+		// accept each others' blocks until a restart. Unfortunately we haven't figured
+		// out a way yet where nodes can decide unilaterally whether the network is new
+		// or not. This should be fixed if we figure out a solution.
+		if h.snapSync.Load() {
+			log.Warn("Snap syncing, discarded propagated block", "number", blocks[0].Number(), "hash", blocks[0].Hash())
+			return 0, nil
+		}
+		n, err := h.chain.InsertChain(blocks)
+		if err == nil {
+			h.synced.Store(true)
+		}
+		return n, err
+	}
+	h.blockFetcher = fetcher.NewBlockFetcher(false, nil, h.chain.GetBlockByHash, validator, h.BroadcastBlock, heighter, nil, inserter, h.removePeer, h.chain.Config().TurboContinuousInturn)
 
 	fetchTx := func(peer string, hashes []common.Hash) error {
 		p := h.peers.peer(peer)
@@ -193,6 +238,7 @@ func newHandler(config *handlerConfig) (*handler, error) {
 		return h.txpool.Add(txs, false, false)
 	}
 	h.txFetcher = fetcher.NewTxFetcher(h.txpool.Has, addTxs, fetchTx, h.removePeer)
+	h.chainSync = newChainSyncer(h)
 	return h, nil
 }
 
@@ -302,6 +348,9 @@ func (h *handler) runEthPeer(peer *eth.Peer, handler eth.Handler) error {
 			return err
 		}
 	}
+
+	h.chainSync.handlePeerEvent(peer)
+
 	// Propagate existing transactions. new transactions appearing
 	// after this will be sent via broadcasts.
 	h.syncTransactions(peer)
@@ -311,46 +360,10 @@ func (h *handler) runEthPeer(peer *eth.Peer, handler eth.Handler) error {
 	defer close(dead)
 
 	// If we have any explicit peer required block hashes, request them
-	for number, hash := range h.requiredBlocks {
-		resCh := make(chan *eth.Response)
-
-		req, err := peer.RequestHeadersByNumber(number, 1, 0, false, resCh)
-		if err != nil {
+	for number := range h.requiredBlocks {
+		if err := peer.RequestHeadersByNumber(number, 1, 0, false); err != nil {
 			return err
 		}
-		go func(number uint64, hash common.Hash, req *eth.Request) {
-			// Ensure the request gets cancelled in case of error/drop
-			defer req.Close()
-
-			timeout := time.NewTimer(syncChallengeTimeout)
-			defer timeout.Stop()
-
-			select {
-			case res := <-resCh:
-				headers := ([]*types.Header)(*res.Res.(*eth.BlockHeadersRequest))
-				if len(headers) == 0 {
-					// Required blocks are allowed to be missing if the remote
-					// node is not yet synced
-					res.Done <- nil
-					return
-				}
-				// Validate the header and either drop the peer or continue
-				if len(headers) > 1 {
-					res.Done <- errors.New("too many headers in required block response")
-					return
-				}
-				if headers[0].Number.Uint64() != number || headers[0].Hash() != hash {
-					peer.Log().Info("Required block mismatch, dropping peer", "number", number, "hash", headers[0].Hash(), "want", hash)
-					res.Done <- errors.New("required block mismatch")
-					return
-				}
-				peer.Log().Debug("Peer required block verified", "number", number, "hash", hash)
-				res.Done <- nil
-			case <-timeout.C:
-				peer.Log().Warn("Required block challenge timed out, dropping", "addr", peer.RemoteAddr(), "type", peer.Name())
-				h.removePeer(peer.ID())
-			}
-		}(number, hash, req)
 	}
 	// Handle incoming messages until the connection is torn down
 	return handler(peer)
@@ -428,16 +441,26 @@ func (h *handler) Start(maxPeers int) {
 	h.txsSub = h.txpool.SubscribeTransactions(h.txsCh, false)
 	go h.txBroadcastLoop()
 
+	// broadcast mined blocks
+	h.wg.Add(1)
+	h.minedBlockSub = h.eventMux.Subscribe(core.NewMinedBlockEvent{})
+	go h.minedBroadcastLoop()
+
 	// start sync handlers
 	h.txFetcher.Start()
 
 	// start peer handler tracker
 	h.wg.Add(1)
 	go h.protoTracker()
+
+	// start sync handlers
+	h.wg.Add(1)
+	go h.chainSync.loop()
 }
 
 func (h *handler) Stop() {
-	h.txsSub.Unsubscribe() // quits txBroadcastLoop
+	h.txsSub.Unsubscribe()        // quits txBroadcastLoop
+	h.minedBlockSub.Unsubscribe() // quits blockBroadcastLoop
 	h.txFetcher.Stop()
 	h.downloader.Terminate()
 
@@ -453,6 +476,41 @@ func (h *handler) Stop() {
 	h.wg.Wait()
 
 	log.Info("Ethereum protocol stopped")
+}
+
+// BroadcastBlock will either propagate a block to a subset of its peers, or
+// will only announce its availability (depending what's requested).
+func (h *handler) BroadcastBlock(block *types.Block, propagate bool) {
+	hash := block.Hash()
+	peers := h.peers.peersWithoutBlock(hash)
+
+	// If propagation is requested, send to a subset of the peer
+	if propagate {
+		// Calculate the TD of the block (it's not imported yet, so block.Td is not valid)
+		var td *big.Int
+		if parent := h.chain.GetBlock(block.ParentHash(), block.NumberU64()-1); parent != nil {
+			td = new(big.Int).Add(block.Difficulty(), h.chain.GetTd(block.ParentHash(), block.NumberU64()-1))
+		} else {
+			log.Error("Propagating dangling block", "number", block.Number, "hash", hash)
+			return
+		}
+		// Send the block to a subset of our peers
+		transfer := peers[:int(math.Sqrt(float64(len(peers))))]
+		for _, peer := range transfer {
+			log.Info("metric", "method", "broadcastBlock", "peer", peer.ID(), "hash", block.Header().Hash().String(), "number", block.Header().Number.Uint64(), "fullBlock", true)
+			peer.AsyncSendNewBlock(block, td)
+		}
+		log.Trace("Propagated block", "hash", hash, "recipients", len(transfer), "duration", common.PrettyDuration(time.Since(block.ReceivedAt)))
+		return
+	}
+	// Otherwise if the block is indeed in out own chain, announce it
+	if h.chain.HasBlock(hash, block.NumberU64()) {
+		for _, peer := range peers {
+			peer.AsyncSendNewBlockHash(block)
+			log.Info("metric", "method", "broadcastBlock", "peer", peer.ID(), "hash", block.Header().Hash().String(), "number", block.Header().Number.Uint64(), "fullBlock", false)
+		}
+		log.Trace("Announced block", "hash", hash, "recipients", len(peers), "duration", common.PrettyDuration(time.Since(block.ReceivedAt)))
+	}
 }
 
 // BroadcastTransactions will propagate a batch of transactions
@@ -531,6 +589,18 @@ func (h *handler) BroadcastTransactions(txs types.Transactions) {
 	}
 	log.Debug("Distributed transactions", "plaintxs", len(txs)-blobTxs-largeTxs, "blobtxs", blobTxs, "largetxs", largeTxs,
 		"bcastpeers", len(txset), "bcastcount", directCount, "annpeers", len(annos), "anncount", annCount)
+}
+
+// minedBroadcastLoop sends mined blocks to connected peers.
+func (h *handler) minedBroadcastLoop() {
+	defer h.wg.Done()
+
+	for obj := range h.minedBlockSub.Chan() {
+		if ev, ok := obj.Data.(core.NewMinedBlockEvent); ok {
+			h.BroadcastBlock(ev.Block, true)  // First propagate block to peers
+			h.BroadcastBlock(ev.Block, false) // Only then announce to the rest
+		}
+	}
 }
 
 // txBroadcastLoop announces new transactions to connected peers.

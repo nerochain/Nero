@@ -38,7 +38,7 @@ import (
 	"github.com/ethereum/go-ethereum/core/state"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/crypto"
-	"github.com/ethereum/go-ethereum/eth/protocols/eth"
+	"github.com/ethereum/go-ethereum/eth/protocols/eth2"
 	"github.com/ethereum/go-ethereum/params"
 	"github.com/ethereum/go-ethereum/rlp"
 )
@@ -205,7 +205,7 @@ func (c *Chain) SignTx(from common.Address, tx *types.Transaction) (*types.Trans
 }
 
 // GetHeaders returns the headers base on an ethGetPacketHeadersPacket.
-func (c *Chain) GetHeaders(req *eth.GetBlockHeadersPacket) ([]*types.Header, error) {
+func (c *Chain) GetHeaders(req *eth2.GetBlockHeadersPacket) ([]*types.Header, error) {
 	if req.Amount < 1 {
 		return nil, errors.New("no block headers requested")
 	}
