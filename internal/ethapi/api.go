@@ -141,6 +141,19 @@ func (s *EthereumAPI) BlobBaseFee(ctx context.Context) *hexutil.Big {
 	return (*hexutil.Big)(s.b.BlobBaseFee(ctx))
 }
 
+// GasPricePrediction returns a suggestion for gas prices of fast, median, low.
+func (s *EthereumAPI) GasPricePrediction(ctx context.Context) (map[string]uint, error) {
+	price, err := s.b.PricePrediction(ctx)
+	if err != nil {
+		return nil, err
+	}
+	return map[string]uint{
+		"fast":   price[0],
+		"median": price[1],
+		"low":    price[2],
+	}, nil
+}
+
 // Syncing returns false in case the node is currently not syncing with the network. It can be up-to-date or has not
 // yet received the latest block headers from its peers. In case it is synchronizing:
 // - startingBlock: block number this node started to synchronize from

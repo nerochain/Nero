@@ -87,16 +87,20 @@ type Backend interface {
 	ChainDb() ethdb.Database
 	StateAtBlock(ctx context.Context, block *types.Block, reexec uint64, base *state.StateDB, readOnly bool, preferDisk bool) (*state.StateDB, StateReleaseFunc, error)
 	StateAtTransaction(ctx context.Context, block *types.Block, txIndex int, reexec uint64) (*types.Transaction, vm.BlockContext, *state.StateDB, StateReleaseFunc, error)
+	ChainHeaderReader() consensus.ChainHeaderReader
 }
 
 // API is the collection of tracing APIs exposed over the private debugging endpoint.
 type API struct {
-	backend Backend
+	backend       Backend
+	isTurboEngine bool
+	turboEngine   consensus.TurboEngine
 }
 
 // NewAPI creates a new API definition for the tracing methods of the Ethereum service.
 func NewAPI(backend Backend) *API {
-	return &API{backend: backend}
+	turboEngine, isTurboEngine := backend.Engine().(consensus.TurboEngine)
+	return &API{backend: backend, isTurboEngine: isTurboEngine, turboEngine: turboEngine}
 }
 
 // chainContext constructs the context reader which is used by the evm for reading
@@ -201,8 +205,10 @@ type blockTraceResult struct {
 // txTraceTask represents a single transaction trace task when an entire block
 // is being traced.
 type txTraceTask struct {
-	statedb *state.StateDB // Intermediate state prepped for tracing
-	index   int            // Transaction offset in the block
+	statedb              *state.StateDB // Intermediate state prepped for tracing
+	index                int            // Transaction offset in the block
+	isDoubleSignPunishTx bool           // Is punish double sign transaction
+	isProposalTxs        bool           // Is system transaction
 }
 
 // TraceChain returns the structured logs created during the execution of EVM
@@ -266,8 +272,13 @@ func (api *API) traceChain(start, end *types.Block, config *TraceConfig, closed 
 			for task := range taskCh {
 				var (
 					signer   = types.MakeSigner(api.backend.ChainConfig(), task.block.Number(), task.block.Time())
-					blockCtx = core.NewEVMBlockContext(task.block.Header(), api.chainContext(ctx), nil)
+					header   = task.block.Header()
+					blockCtx = core.NewEVMBlockContext(header, api.chainContext(ctx), nil)
 				)
+				if api.isTurboEngine {
+					_ = api.turboEngine.PreHandle(api.backend.ChainHeaderReader(), header, task.statedb)
+					blockCtx.AccessFilter = api.turboEngine.CreateEvmAccessFilter(header, task.statedb)
+				}
 				// Trace all the transactions contained within
 				for i, tx := range task.block.Transactions() {
 					msg, _ := core.TransactionToMessage(tx, signer, task.block.BaseFee())
@@ -277,7 +288,26 @@ func (api *API) traceChain(start, end *types.Block, config *TraceConfig, closed 
 						TxIndex:     i,
 						TxHash:      tx.Hash(),
 					}
-					res, err := api.traceTx(ctx, tx, msg, txctx, blockCtx, task.statedb, config)
+
+					var (
+						res                  interface{}
+						err                  error
+						isDoubleSignPunishTx bool
+						isProposalTxs        bool
+					)
+					if api.isTurboEngine {
+						isDoubleSignPunishTx = api.turboEngine.IsDoubleSignPunishTransaction(msg.From, tx, header)
+						isProposalTxs = api.turboEngine.IsSysTransaction(msg.From, tx, header)
+
+					}
+					if isDoubleSignPunishTx {
+						res, err = api.traceTurboApplyDoubleSignPunishTx(ctx, msg.From, tx, txctx, blockCtx, task.statedb, config)
+					} else if isProposalTxs {
+						res, err = api.traceProposalTx(ctx, msg.From, tx, txctx, blockCtx, task.statedb, config)
+					} else {
+						res, err = api.traceTx(ctx, tx, msg, txctx, blockCtx, task.statedb, config)
+					}
+
 					if err != nil {
 						task.results[i] = &txTraceResult{TxHash: tx.Hash(), Error: err.Error()}
 						log.Warn("Tracing failed", "hash", tx.Hash(), "block", task.block.NumberU64(), "err", err)
@@ -593,6 +623,11 @@ func (api *API) traceBlock(ctx context.Context, block *types.Block, config *Trac
 		return nil, err
 	}
 	defer release()
+	blockCtx := core.NewEVMBlockContext(block.Header(), api.chainContext(ctx), nil)
+	if api.isTurboEngine {
+		_ = api.turboEngine.PreHandle(api.backend.ChainHeaderReader(), block.Header(), statedb)
+		blockCtx.AccessFilter = api.turboEngine.CreateEvmAccessFilter(block.Header(), statedb)
+	}
 	// JS tracers have high overhead. In this case run a parallel
 	// process that generates states in one thread and traces txes
 	// in separate worker threads.
@@ -605,7 +640,6 @@ func (api *API) traceBlock(ctx context.Context, block *types.Block, config *Trac
 	var (
 		txs       = block.Transactions()
 		blockHash = block.Hash()
-		blockCtx  = core.NewEVMBlockContext(block.Header(), api.chainContext(ctx), nil)
 		signer    = types.MakeSigner(api.backend.ChainConfig(), block.Number(), block.Time())
 		results   = make([]*txTraceResult, len(txs))
 	)
@@ -614,6 +648,15 @@ func (api *API) traceBlock(ctx context.Context, block *types.Block, config *Trac
 		core.ProcessBeaconBlockRoot(*beaconRoot, vmenv, statedb)
 	}
 	for i, tx := range txs {
+		var (
+			isDoubleSignPunishTx bool
+			isProposalTxs        bool
+		)
+		if api.isTurboEngine {
+			sender, _ := types.Sender(signer, tx)
+			isDoubleSignPunishTx = api.turboEngine.IsDoubleSignPunishTransaction(sender, tx, block.Header())
+			isProposalTxs = api.turboEngine.IsSysTransaction(sender, tx, block.Header())
+		}
 		// Generate the next state snapshot fast without tracing
 		msg, _ := core.TransactionToMessage(tx, signer, block.BaseFee())
 		txctx := &Context{
@@ -622,7 +665,15 @@ func (api *API) traceBlock(ctx context.Context, block *types.Block, config *Trac
 			TxIndex:     i,
 			TxHash:      tx.Hash(),
 		}
-		res, err := api.traceTx(ctx, tx, msg, txctx, blockCtx, statedb, config)
+		var res interface{}
+		var err error
+		if isDoubleSignPunishTx {
+			res, err = api.traceTurboApplyDoubleSignPunishTx(ctx, msg.From, txs[i], txctx, blockCtx, statedb, config)
+		} else if isProposalTxs {
+			res, err = api.traceProposalTx(ctx, msg.From, txs[i], txctx, blockCtx, statedb, config)
+		} else {
+			res, err = api.traceTx(ctx, txs[i], msg, txctx, blockCtx, statedb, config)
+		}
 		if err != nil {
 			return nil, err
 		}
@@ -666,7 +717,19 @@ func (api *API) traceBlockParallel(ctx context.Context, block *types.Block, stat
 				// concurrent use.
 				// See: https://github.com/ethereum/go-ethereum/issues/29114
 				blockCtx := core.NewEVMBlockContext(block.Header(), api.chainContext(ctx), nil)
-				res, err := api.traceTx(ctx, txs[task.index], msg, txctx, blockCtx, task.statedb, config)
+				// res, err := api.traceTx(ctx, txs[task.index], msg, txctx, blockCtx, task.statedb, config)
+				var res interface{}
+				var err error
+				if task.isDoubleSignPunishTx {
+					tx := txs[task.index]
+					res, err = api.traceTurboApplyDoubleSignPunishTx(ctx, msg.From, tx, txctx, blockCtx, task.statedb, config)
+				} else if task.isProposalTxs {
+					tx := txs[task.index]
+					res, err = api.traceProposalTx(ctx, msg.From, tx, txctx, blockCtx, task.statedb, config)
+				} else {
+					tx := txs[task.index]
+					res, err = api.traceTx(ctx, tx, msg, txctx, blockCtx, task.statedb, config)
+				}
 				if err != nil {
 					results[task.index] = &txTraceResult{TxHash: txs[task.index].Hash(), Error: err.Error()}
 					continue
@@ -681,8 +744,17 @@ func (api *API) traceBlockParallel(ctx context.Context, block *types.Block, stat
 	blockCtx := core.NewEVMBlockContext(block.Header(), api.chainContext(ctx), nil)
 txloop:
 	for i, tx := range txs {
+		var (
+			isDoubleSignPunishTx bool
+			isProposalTxs        bool
+		)
+		if api.isTurboEngine {
+			sender, _ := types.Sender(signer, tx)
+			isDoubleSignPunishTx = api.turboEngine.IsDoubleSignPunishTransaction(sender, tx, block.Header())
+			isProposalTxs = api.turboEngine.IsSysTransaction(sender, tx, block.Header())
+		}
 		// Send the trace task over for execution
-		task := &txTraceTask{statedb: statedb.Copy(), index: i}
+		task := &txTraceTask{statedb: statedb.Copy(), index: i, isDoubleSignPunishTx: isDoubleSignPunishTx, isProposalTxs: isProposalTxs}
 		select {
 		case <-ctx.Done():
 			failed = ctx.Err()
@@ -694,6 +766,20 @@ txloop:
 		msg, _ := core.TransactionToMessage(tx, signer, block.BaseFee())
 		statedb.SetTxContext(tx.Hash(), i)
 		vmenv := vm.NewEVM(blockCtx, core.NewEVMTxContext(msg), statedb, api.backend.ChainConfig(), vm.Config{})
+		if isDoubleSignPunishTx {
+			if _, _, err := api.turboEngine.ApplyDoubleSignPunishTx(vmenv, msg.From, tx); err != nil {
+				failed = err
+				break
+			}
+			continue
+		}
+		if isProposalTxs {
+			if _, _, err := api.turboEngine.ApplyProposalTx(vmenv, statedb, i, msg.From, tx); err != nil {
+				failed = err
+				break
+			}
+			continue
+		}
 		if _, err := core.ApplyMessage(vmenv, msg, new(core.GasPool).AddGas(msg.GasLimit)); err != nil {
 			failed = err
 			break txloop
@@ -811,6 +897,21 @@ func (api *API) standardTraceBlockToFile(ctx context.Context, block *types.Block
 		if vmConf.Tracer.OnTxEnd != nil {
 			vmConf.Tracer.OnTxEnd(&types.Receipt{GasUsed: vmRet.UsedGas}, err)
 		}
+		var (
+			isDoubleSignPunishTx bool
+			isProposalTxs        bool
+		)
+		if api.isTurboEngine {
+			isDoubleSignPunishTx = api.turboEngine.IsDoubleSignPunishTransaction(msg.From, tx, block.Header())
+			isProposalTxs = api.turboEngine.IsSysTransaction(msg.From, tx, block.Header())
+		}
+		if isDoubleSignPunishTx {
+			_, _, err = api.turboEngine.ApplyDoubleSignPunishTx(vmenv, msg.From, tx)
+		} else if isProposalTxs {
+			_, _, err = api.turboEngine.ApplyProposalTx(vmenv, statedb, i, msg.From, tx)
+		} else {
+			_, err = core.ApplyMessage(vmenv, msg, new(core.GasPool).AddGas(msg.GasLimit))
+		}
 		if writer != nil {
 			writer.Flush()
 		}
@@ -883,6 +984,15 @@ func (api *API) TraceTransaction(ctx context.Context, hash common.Hash, config *
 		TxIndex:     int(index),
 		TxHash:      hash,
 	}
+	if api.isTurboEngine {
+		tx := block.Transactions()[int(index)]
+		if ok := api.turboEngine.IsDoubleSignPunishTransaction(msg.From, tx, block.Header()); ok {
+			return api.traceTurboApplyDoubleSignPunishTx(ctx, msg.From, tx, txctx, vmctx, statedb, config)
+		}
+		if ok := api.turboEngine.IsSysTransaction(msg.From, tx, block.Header()); ok {
+			return api.traceProposalTx(ctx, msg.From, tx, txctx, vmctx, statedb, config)
+		}
+	}
 	return api.traceTx(ctx, tx, msg, txctx, vmctx, statedb, config)
 }
 
@@ -936,6 +1046,9 @@ func (api *API) TraceCall(ctx context.Context, args ethapi.TransactionArgs, bloc
 	defer release()
 
 	vmctx := core.NewEVMBlockContext(block.Header(), api.chainContext(ctx), nil)
+	if api.isTurboEngine {
+		vmctx.AccessFilter = api.turboEngine.CreateEvmAccessFilter(block.Header(), statedb)
+	}
 	// Apply the customization rules if required.
 	if config != nil {
 		if err := config.StateOverrides.Apply(statedb); err != nil {
@@ -1009,6 +1122,120 @@ func (api *API) traceTx(ctx context.Context, tx *types.Transaction, message *cor
 	// Call Prepare to clear out the statedb access list
 	statedb.SetTxContext(txctx.TxHash, txctx.TxIndex)
 	_, err = core.ApplyTransactionWithEVM(message, api.backend.ChainConfig(), new(core.GasPool).AddGas(message.GasLimit), statedb, vmctx.BlockNumber, txctx.BlockHash, tx, &usedGas, vmenv)
+	if err != nil {
+		return nil, fmt.Errorf("tracing failed: %w", err)
+	}
+	return tracer.GetResult()
+}
+
+func (api *API) traceTurboApplyDoubleSignPunishTx(ctx context.Context, sender common.Address, tx *types.Transaction, txctx *Context, vmctx vm.BlockContext, statedb *state.StateDB, config *TraceConfig) (interface{}, error) {
+	// Assemble the structured logger or the JavaScript tracer
+	var (
+		tracer *Tracer
+		err    error
+	)
+	switch {
+	case config != nil && config.Tracer != nil:
+		// Define a meaningful timeout of a single transaction trace
+		timeout := defaultTraceTimeout
+		if config.Timeout != nil {
+			if timeout, err = time.ParseDuration(*config.Timeout); err != nil {
+				return nil, err
+			}
+		}
+		// Constuct the JavaScript tracer to execute with
+		if tracer, err = DefaultDirectory.New(*config.Tracer, txctx, config.TracerConfig); err != nil {
+			return nil, err
+		}
+		// Handle timeouts and RPC cancellations
+		deadlineCtx, cancel := context.WithTimeout(ctx, timeout)
+		go func() {
+			<-deadlineCtx.Done()
+			if deadlineCtx.Err() == context.DeadlineExceeded {
+				tracer.Stop(errors.New("execution timeout"))
+			}
+		}()
+		defer cancel()
+
+	case config == nil:
+		logger := logger.NewStructLogger(nil)
+		tracer = &Tracer{
+			Hooks:     logger.Hooks(),
+			GetResult: logger.GetResult,
+			Stop:      logger.Stop,
+		}
+
+	default:
+		logger := logger.NewStructLogger(config.Config)
+		tracer = &Tracer{
+			Hooks:     logger.Hooks(),
+			GetResult: logger.GetResult,
+			Stop:      logger.Stop,
+		}
+	}
+	// Run the transaction with tracing enabled.
+	vmenvWithoutTxCtx := vm.NewEVM(vmctx, vm.TxContext{}, statedb, api.backend.ChainConfig(), vm.Config{EnablePreimageRecording: true, Tracer: tracer.Hooks, NoBaseFee: true})
+	// Call Prepare to clear out the statedb access list
+	statedb.SetTxContext(txctx.TxHash, txctx.TxIndex)
+	_, _, err = api.turboEngine.ApplyDoubleSignPunishTx(vmenvWithoutTxCtx, sender, tx)
+	if err != nil {
+		return nil, fmt.Errorf("tracing failed: %w", err)
+	}
+	return tracer.GetResult()
+}
+
+// traceTx configures a new tracer according to the provided configuration, and
+// executes the given message in the provided environment. The return value will
+// be tracer dependent.
+func (api *API) traceProposalTx(ctx context.Context, sender common.Address, tx *types.Transaction, txctx *Context, vmctx vm.BlockContext, statedb *state.StateDB, config *TraceConfig) (interface{}, error) {
+	// Assemble the structured logger or the JavaScript tracer
+	var (
+		tracer *Tracer
+		err    error
+	)
+	switch {
+	case config != nil && config.Tracer != nil:
+		// Define a meaningful timeout of a single transaction trace
+		timeout := defaultTraceTimeout
+		if config.Timeout != nil {
+			if timeout, err = time.ParseDuration(*config.Timeout); err != nil {
+				return nil, err
+			}
+		}
+		// Constuct the JavaScript tracer to execute with
+		if tracer, err = DefaultDirectory.New(*config.Tracer, txctx, config.TracerConfig); err != nil {
+			return nil, err
+		}
+		// Handle timeouts and RPC cancellations
+		deadlineCtx, cancel := context.WithTimeout(ctx, timeout)
+		go func() {
+			<-deadlineCtx.Done()
+			if deadlineCtx.Err() == context.DeadlineExceeded {
+				tracer.Stop(errors.New("execution timeout"))
+			}
+		}()
+		defer cancel()
+
+	case config == nil:
+		logger := logger.NewStructLogger(nil)
+		tracer = &Tracer{
+			Hooks:     logger.Hooks(),
+			GetResult: logger.GetResult,
+			Stop:      logger.Stop,
+		}
+	default:
+		logger := logger.NewStructLogger(config.Config)
+		tracer = &Tracer{
+			Hooks:     logger.Hooks(),
+			GetResult: logger.GetResult,
+			Stop:      logger.Stop,
+		}
+	}
+	// Run the transaction with tracing enabled.
+	vmctx.AccessFilter = nil
+	vmenvWithoutTxCtx := vm.NewEVM(vmctx, vm.TxContext{}, statedb, api.backend.ChainConfig(), vm.Config{EnablePreimageRecording: true, Tracer: tracer.Hooks, NoBaseFee: true})
+
+	_, _, err = api.turboEngine.ApplyProposalTx(vmenvWithoutTxCtx, statedb, txctx.TxIndex, sender, tx)
 	if err != nil {
 		return nil, fmt.Errorf("tracing failed: %w", err)
 	}

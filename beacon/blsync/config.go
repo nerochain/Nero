@@ -74,14 +74,12 @@ var (
 func makeChainConfig(ctx *cli.Context) lightClientConfig {
 	var config lightClientConfig
 	customConfig := ctx.IsSet(utils.BeaconConfigFlag.Name)
-	utils.CheckExclusive(ctx, utils.MainnetFlag, utils.GoerliFlag, utils.SepoliaFlag, utils.BeaconConfigFlag)
+	utils.CheckExclusive(ctx, utils.MainnetFlag, utils.TestnetFlag, utils.BeaconConfigFlag)
 	switch {
 	case ctx.Bool(utils.MainnetFlag.Name):
 		config = MainnetConfig
-	case ctx.Bool(utils.SepoliaFlag.Name):
-		config = SepoliaConfig
-	case ctx.Bool(utils.GoerliFlag.Name):
-		config = GoerliConfig
+	case ctx.Bool(utils.TestnetFlag.Name):
+
 	default:
 		if !customConfig {
 			config = MainnetConfig
