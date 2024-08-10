@@ -12,6 +12,7 @@ import (
 	"github.com/ethereum/go-ethereum/event"
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/rpc"
+	"github.com/holiman/uint256"
 )
 
 var (
@@ -141,7 +142,8 @@ func (p *Prediction) loop() {
 }
 
 func (p *Prediction) update() {
-	pendingLazy := p.pool.Pending(txpool.PendingFilter{})
+	pendingFilter := txpool.PendingFilter{MinTip: uint256.MustFromBig(p.pool.GasTip())}
+	pendingLazy := p.pool.Pending(pendingFilter)
 	var byprice TxByPrice
 	for _, batch := range pendingLazy {
 		for _, lazy := range batch {

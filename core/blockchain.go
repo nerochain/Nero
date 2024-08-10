@@ -285,7 +285,6 @@ type BlockChain struct {
 	BlockStatusCache         *lru.Cache[uint64, *types.BlockStatus]
 
 	currentEpochCheckBps atomic.Value // types.EpochCheckBps
-	lock                 sync.RWMutex
 
 	lockAddOneAttestationToRecentCache sync.RWMutex
 	lockHistoryAttessCache             sync.RWMutex

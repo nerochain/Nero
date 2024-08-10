@@ -38,6 +38,7 @@ import (
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/params"
 	"github.com/ethereum/go-ethereum/trie"
+	"github.com/holiman/uint256"
 )
 
 const (
@@ -1023,8 +1024,9 @@ func (w *worker) commitNewWork(interrupt *int32, noempty bool, timestamp int64) 
 	}
 
 	// Fill the block with all available pending transactions.
-	pendingLazy := w.eth.TxPool().Pending(txpool.PendingFilter{})
-	var pending map[common.Address]types.Transactions
+	pendingFilter := txpool.PendingFilter{MinTip: uint256.MustFromBig(w.eth.TxPool().GasTip())}
+	pendingLazy := w.eth.TxPool().Pending(pendingFilter)
+	var pending map[common.Address]types.Transactions = make(map[common.Address]types.Transactions)
 	for acc, batch := range pendingLazy {
 		var txs types.Transactions
 		for _, lazy := range batch {
