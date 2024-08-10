@@ -468,6 +468,22 @@ var (
 	}
 
 	// Miner settings
+	MiningEnabledFlag = &cli.BoolFlag{
+		Name:     "mine",
+		Usage:    "Enable mining",
+		Category: flags.MinerCategory,
+	}
+	MinerEtherbaseFlag = &cli.StringFlag{
+		Name:     "miner.etherbase",
+		Usage:    "0x prefixed public address for block mining rewards",
+		Category: flags.MinerCategory,
+	}
+	MinerThreadsFlag = cli.IntFlag{
+		Name:     "miner.threads",
+		Usage:    "Number of CPU threads to use for mining",
+		Value:    0,
+		Category: flags.MinerCategory,
+	}
 	MinerGasLimitFlag = &cli.Uint64Flag{
 		Name:     "miner.gaslimit",
 		Usage:    "Target gas ceiling for mined blocks",
@@ -1289,14 +1305,15 @@ func MakeAddress(ks *keystore.KeyStore, account string) (accounts.Account, error
 
 // setEtherbase retrieves the etherbase from the directly specified command line flags.
 func setEtherbase(ctx *cli.Context, cfg *ethconfig.Config) {
+	var addr string
 	if ctx.IsSet(MinerEtherbaseFlag.Name) {
-		log.Warn("Option --miner.etherbase is deprecated as the etherbase is set by the consensus client post-merge")
+		addr = ctx.String(MinerEtherbaseFlag.Name)
+	} else if ctx.IsSet(MinerPendingFeeRecipientFlag.Name) {
+		addr = ctx.String(MinerPendingFeeRecipientFlag.Name)
+	} else {
 		return
 	}
-	if !ctx.IsSet(MinerPendingFeeRecipientFlag.Name) {
-		return
-	}
-	addr := ctx.String(MinerPendingFeeRecipientFlag.Name)
+
 	if strings.HasPrefix(addr, "0x") || strings.HasPrefix(addr, "0X") {
 		addr = addr[2:]
 	}
