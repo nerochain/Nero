@@ -280,7 +280,8 @@ func TestGenesisUnmarshal(t *testing.T) {
 		FirstLockPeriod: big.NewInt(63072000),
 		ReleasePeriod:   big.NewInt(2592000),
 		ReleaseCnt:      big.NewInt(48),
-		RuEpoch:         big.NewInt(28800),
+		TotalRewards:    fromGwei(2700000000000000000),
+		RewardsPerBlock: fromGwei(64388736300),
 	})
 
 	genesisLockInit := genesis.Alloc[system.GenesisLockContract].Init
@@ -296,7 +297,7 @@ func TestGenesisUnmarshal(t *testing.T) {
 		Address:          common.HexToAddress("0x8Cc5A1a0802DB41DB826C2FcB72423744338DcB0"),
 		Manager:          common.HexToAddress("0x352BbF453fFdcba6b126a73eD684260D7968dDc8"),
 		Rate:             big.NewInt(20),
-		Stake:            big.NewInt(350000),
+		Stake:            new(big.Int).Mul(big.NewInt(350000), big.NewInt(1000000000000000000)),
 		AcceptDelegation: true,
 	})
 
@@ -333,11 +334,14 @@ func TestDecodePrealloc(t *testing.T) {
 			if accountExpect.Init.ReleaseCnt != nil {
 				assert.Equal(t, accountExpect.Init.ReleaseCnt, account.Init.ReleaseCnt, addr)
 			}
+			if accountExpect.Init.TotalRewards != nil {
+				assert.Equal(t, accountExpect.Init.TotalRewards, account.Init.TotalRewards, addr)
+			}
+			if accountExpect.Init.RewardsPerBlock != nil {
+				assert.Equal(t, accountExpect.Init.RewardsPerBlock, account.Init.RewardsPerBlock, addr)
+			}
 			if accountExpect.Init.ReleasePeriod != nil {
 				assert.Equal(t, accountExpect.Init.ReleasePeriod, account.Init.ReleasePeriod, addr)
-			}
-			if accountExpect.Init.RuEpoch != nil {
-				assert.Equal(t, accountExpect.Init.RuEpoch, account.Init.RuEpoch, addr)
 			}
 		}
 	}

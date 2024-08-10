@@ -56,7 +56,8 @@ type initArgs struct {
 	FirstLockPeriod *big.Int        `rlp:"optional"`
 	ReleasePeriod   *big.Int        `rlp:"optional"`
 	ReleaseCnt      *big.Int        `rlp:"optional"`
-	RuEpoch         *big.Int        `rlp:"optional"`
+	TotalRewards    *big.Int        `rlp:"optional"`
+	RewardsPerBlock *big.Int        `rlp:"optional"`
 	PeriodTime      *big.Int        `rlp:"optional"`
 	LockedAccounts  []lockedAccount `rlp:"optional"`
 }
@@ -97,7 +98,8 @@ func makelist(g *core.Genesis) []allocItem {
 					FirstLockPeriod: account.Init.FirstLockPeriod,
 					ReleasePeriod:   account.Init.ReleasePeriod,
 					ReleaseCnt:      account.Init.ReleaseCnt,
-					RuEpoch:         account.Init.RuEpoch,
+					TotalRewards:    account.Init.TotalRewards,
+					RewardsPerBlock: account.Init.RewardsPerBlock,
 					PeriodTime:      account.Init.PeriodTime,
 				}
 				if len(account.Init.LockedAccounts) > 0 {

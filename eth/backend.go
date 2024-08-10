@@ -259,16 +259,6 @@ func New(stack *node.Node, config *ethconfig.Config) (*Ethereum, error) {
 
 		// set consensus-related transaction validator
 		eth.txPool.InitTxFilter(turboEngine)
-
-		// Init RewardsUpdatePeroid
-		currState, err := eth.blockchain.State()
-		if err != nil {
-			return nil, err
-		}
-		if err = turboEngine.InitRewardsUpdatePeroid(eth.blockchain, currState); err != nil {
-			log.Error("Init RewardsUpdatePeroid failed in Turbo", "err", err)
-			return nil, err
-		}
 	}
 
 	// Permit the downloader to use the trie cache allowance during fast sync

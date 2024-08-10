@@ -52,7 +52,8 @@ type Init struct {
 	FirstLockPeriod *big.Int        `json:"firstLockPeriod,omitempty"`
 	ReleasePeriod   *big.Int        `json:"releasePeriod,omitempty"`
 	ReleaseCnt      *big.Int        `json:"releaseCnt,omitempty"`
-	RuEpoch         *big.Int        `json:"ruEpoch,omitempty"`
+	TotalRewards    *big.Int        `json:"totalRewards,omitempty"`
+	RewardsPerBlock *big.Int        `json:"rewardsPerBlock,omitempty"`
 	PeriodTime      *big.Int        `json:"periodTime,omitempty"`
 	LockedAccounts  []LockedAccount `json:"lockedAccounts,omitempty"`
 }
@@ -107,7 +108,8 @@ type initMarshaling struct {
 	FirstLockPeriod *math.HexOrDecimal256
 	ReleasePeriod   *math.HexOrDecimal256
 	ReleaseCnt      *math.HexOrDecimal256
-	RuEpoch         *math.HexOrDecimal256
+	TotalRewards    *math.HexOrDecimal256
+	RewardsPerBlock *math.HexOrDecimal256
 	PeriodTime      *math.HexOrDecimal256
 }
 

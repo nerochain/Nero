@@ -25,8 +25,8 @@ type CallContext struct {
 }
 
 // CallContract executes transaction sent to system contracts.
-func CallContract(ctx *CallContext, to *common.Address, data []byte) (ret []byte, err error) {
-	return CallContractWithValue(ctx, ctx.Header.Coinbase, to, data, common.U2560)
+func CallContract(ctx *CallContext, from common.Address, to *common.Address, data []byte) (ret []byte, err error) {
+	return CallContractWithValue(ctx, from, to, data, common.U2560)
 }
 
 // CallContract executes transaction sent to system contracts.

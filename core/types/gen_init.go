@@ -19,7 +19,8 @@ func (i Init) MarshalJSON() ([]byte, error) {
 		FirstLockPeriod *math.HexOrDecimal256 `json:"firstLockPeriod,omitempty"`
 		ReleasePeriod   *math.HexOrDecimal256 `json:"releasePeriod,omitempty"`
 		ReleaseCnt      *math.HexOrDecimal256 `json:"releaseCnt,omitempty"`
-		RuEpoch         *math.HexOrDecimal256 `json:"ruEpoch,omitempty"`
+		TotalRewards    *math.HexOrDecimal256 `json:"totalRewards,omitempty"`
+		RewardsPerBlock *math.HexOrDecimal256 `json:"rewardsPerBlock,omitempty"`
 		PeriodTime      *math.HexOrDecimal256 `json:"periodTime,omitempty"`
 		LockedAccounts  []LockedAccount       `json:"lockedAccounts,omitempty"`
 	}
@@ -28,7 +29,8 @@ func (i Init) MarshalJSON() ([]byte, error) {
 	enc.FirstLockPeriod = (*math.HexOrDecimal256)(i.FirstLockPeriod)
 	enc.ReleasePeriod = (*math.HexOrDecimal256)(i.ReleasePeriod)
 	enc.ReleaseCnt = (*math.HexOrDecimal256)(i.ReleaseCnt)
-	enc.RuEpoch = (*math.HexOrDecimal256)(i.RuEpoch)
+	enc.TotalRewards = (*math.HexOrDecimal256)(i.TotalRewards)
+	enc.RewardsPerBlock = (*math.HexOrDecimal256)(i.RewardsPerBlock)
 	enc.PeriodTime = (*math.HexOrDecimal256)(i.PeriodTime)
 	enc.LockedAccounts = i.LockedAccounts
 	return json.Marshal(&enc)
@@ -41,7 +43,8 @@ func (i *Init) UnmarshalJSON(input []byte) error {
 		FirstLockPeriod *math.HexOrDecimal256 `json:"firstLockPeriod,omitempty"`
 		ReleasePeriod   *math.HexOrDecimal256 `json:"releasePeriod,omitempty"`
 		ReleaseCnt      *math.HexOrDecimal256 `json:"releaseCnt,omitempty"`
-		RuEpoch         *math.HexOrDecimal256 `json:"ruEpoch,omitempty"`
+		TotalRewards    *math.HexOrDecimal256 `json:"totalRewards,omitempty"`
+		RewardsPerBlock *math.HexOrDecimal256 `json:"rewardsPerBlock,omitempty"`
 		PeriodTime      *math.HexOrDecimal256 `json:"periodTime,omitempty"`
 		LockedAccounts  []LockedAccount       `json:"lockedAccounts,omitempty"`
 	}
@@ -61,8 +64,11 @@ func (i *Init) UnmarshalJSON(input []byte) error {
 	if dec.ReleaseCnt != nil {
 		i.ReleaseCnt = (*big.Int)(dec.ReleaseCnt)
 	}
-	if dec.RuEpoch != nil {
-		i.RuEpoch = (*big.Int)(dec.RuEpoch)
+	if dec.TotalRewards != nil {
+		i.TotalRewards = (*big.Int)(dec.TotalRewards)
+	}
+	if dec.RewardsPerBlock != nil {
+		i.RewardsPerBlock = (*big.Int)(dec.RewardsPerBlock)
 	}
 	if dec.PeriodTime != nil {
 		i.PeriodTime = (*big.Int)(dec.PeriodTime)

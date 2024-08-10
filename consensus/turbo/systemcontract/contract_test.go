@@ -260,40 +260,6 @@ func TestDecreaseMissedBlocksCounter(t *testing.T) {
 	assert.Equal(t, 0, getPunishRecord(GenesisValidators[0]))
 }
 
-func TestGetRewardsUpdatePeroid(t *testing.T) {
-	ctx, err := initCallContext()
-	assert.NoError(t, err, "Init call context error")
-
-	period, err := GetRewardsUpdatePeroid(ctx)
-	if assert.NoError(t, err) {
-		assert.Equal(t, 28800, int(period), "Read from system contract mismatch")
-	}
-}
-
-func TestUpdateRewardsInfo(t *testing.T) {
-	ctx, err := initCallContext()
-	assert.NoError(t, err, "Init call context error")
-
-	currRewardsPerBlock := func(ctx *contracts.CallContext) *big.Int {
-		ret, ok := readSystemContract(t, ctx, "currRewardsPerBlock").(*big.Int)
-		assert.True(t, ok, "invalid result format")
-		return ret
-	}
-
-	period, err := GetRewardsUpdatePeroid(ctx)
-	assert.NoError(t, err)
-
-	ctx.Header.Number.SetUint64(period)
-
-	assert.Equal(t, new(big.Int).Div(core.RewardsByMonth(0)[0], blocksPerMonth), currRewardsPerBlock(ctx))
-
-	ctx.Header.Number.SetUint64(period * 33)
-
-	assert.NoError(t, UpdateRewardsInfo(ctx))
-
-	assert.Equal(t, new(big.Int).Div(core.RewardsByMonth(0)[1], blocksPerMonth), currRewardsPerBlock(ctx))
-}
-
 func TestDistributeBlockFee(t *testing.T) {
 	ctx, err := initCallContext()
 	assert.NoError(t, err, "Init call context error")
@@ -314,8 +280,6 @@ func TestDistributeBlockFee(t *testing.T) {
 	assert.NoError(t, DistributeBlockFee(ctx, fee))
 
 	assert.Equal(t, new(uint256.Int).Sub(origin, fee), ctx.Statedb.GetBalance(ctx.Header.Coinbase))
-
-	assert.Equal(t, new(uint256.Int).Div(fee, uint256.NewInt(5)), ctx.Statedb.GetBalance(system.CommunityPoolContract))
 
 	valAmount := big.NewInt(fee.ToBig().Int64() / 5 * 4 / 2)
 	assert.Equal(t, valAmount, getValidatorFee(GenesisValidators[0]))
@@ -405,7 +369,7 @@ func TestGetBlacksFrom(t *testing.T) {
 	ctx.Header.Coinbase = addressListAdmin
 	addrFrom := common.BigToAddress(big.NewInt(111))
 	var direct uint8 = 0
-	writeContract(t, ctx, &system.AddressListContract, "addBlacklist", addrFrom, direct)
+	writeContract(t, ctx, ctx.Header.Coinbase, &system.AddressListContract, "addBlacklist", addrFrom, direct)
 
 	from, err = GetBlacksFrom(ctx)
 	if assert.NoError(t, err) {
@@ -422,7 +386,7 @@ func TestGetBlacksTo(t *testing.T) {
 	ctx.Header.Coinbase = addressListAdmin
 	addrTo := common.BigToAddress(big.NewInt(111))
 	var direct uint8 = 1
-	writeContract(t, ctx, &system.AddressListContract, "addBlacklist", addrTo, direct)
+	writeContract(t, ctx, ctx.Header.Coinbase, &system.AddressListContract, "addBlacklist", addrTo, direct)
 
 	to, err := GetBlacksTo(ctx)
 	if assert.NoError(t, err) {
@@ -481,18 +445,18 @@ func TestIsDeveloperVerificationEnabled(t *testing.T) {
 	assert.Equal(t, false, checkInnerCreation)
 
 	ctx.Header.Coinbase = addressListAdmin
-	writeContract(t, ctx, &system.AddressListContract, "enableDevVerify")
+	writeContract(t, ctx, ctx.Header.Coinbase, &system.AddressListContract, "enableDevVerify")
 	enabled, checkInnerCreation = IsDeveloperVerificationEnabled(ctx.Statedb)
 	assert.Equal(t, true, enabled)
 	assert.Equal(t, false, checkInnerCreation)
 
-	writeContract(t, ctx, &system.AddressListContract, "disableDevVerify")
-	writeContract(t, ctx, &system.AddressListContract, "enableCheckInnerCreation")
+	writeContract(t, ctx, ctx.Header.Coinbase, &system.AddressListContract, "disableDevVerify")
+	writeContract(t, ctx, ctx.Header.Coinbase, &system.AddressListContract, "enableCheckInnerCreation")
 	enabled, checkInnerCreation = IsDeveloperVerificationEnabled(ctx.Statedb)
 	assert.Equal(t, false, enabled)
 	assert.Equal(t, true, checkInnerCreation)
 
-	writeContract(t, ctx, &system.AddressListContract, "enableDevVerify")
+	writeContract(t, ctx, ctx.Header.Coinbase, &system.AddressListContract, "enableDevVerify")
 	enabled, checkInnerCreation = IsDeveloperVerificationEnabled(ctx.Statedb)
 	assert.Equal(t, true, enabled)
 	assert.Equal(t, true, checkInnerCreation)
@@ -510,7 +474,7 @@ func TestLastBlackUpdatedNumber(t *testing.T) {
 	ctx.Header.Coinbase = addressListAdmin
 	ctx.Header.Number = big.NewInt(300)
 	var direct uint8 = 1
-	writeContract(t, ctx, &system.AddressListContract, "addBlacklist", common.BigToAddress(big.NewInt(111)), direct)
+	writeContract(t, ctx, ctx.Header.Coinbase, &system.AddressListContract, "addBlacklist", common.BigToAddress(big.NewInt(111)), direct)
 
 	number = LastBlackUpdatedNumber(ctx.Statedb)
 	assert.Equal(t, uint64(300), number)
@@ -528,7 +492,7 @@ func TestLastRulesUpdatedNumber(t *testing.T) {
 
 	ctx.Header.Coinbase = addressListAdmin
 	ctx.Header.Number = big.NewInt(300)
-	writeContract(t, ctx, &system.AddressListContract, "removeRule",
+	writeContract(t, ctx, ctx.Header.Coinbase, &system.AddressListContract, "removeRule",
 		common.HexToHash("0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef"), common.Big1)
 
 	number = LastRulesUpdatedNumber(ctx.Statedb)
@@ -542,7 +506,7 @@ func TestGetPassedProposalCount(t *testing.T) {
 	assert.NoError(t, hardforksUpdate(ctx), "hardforksUpdate error")
 
 	ctx.Header.Coinbase = onChainDaoAdmin
-	writeContract(t, ctx, &system.OnChainDaoContract, "commitProposal", big.NewInt(1),
+	writeContract(t, ctx, ctx.Header.Coinbase, &system.OnChainDaoContract, "commitProposal", big.NewInt(1),
 		common.BigToAddress(big.NewInt(1)), common.BigToAddress(big.NewInt(2)),
 		big.NewInt(0), common.Hex2BytesFixed("0xred", 24))
 
@@ -568,7 +532,7 @@ func TestGetPassedProposalByIndex(t *testing.T) {
 	)
 
 	ctx.Header.Coinbase = onChainDaoAdmin
-	writeContract(t, ctx, &system.OnChainDaoContract, "commitProposal", action, from, to, value, data)
+	writeContract(t, ctx, ctx.Header.Coinbase, &system.OnChainDaoContract, "commitProposal", action, from, to, value, data)
 
 	prop, err := GetPassedProposalByIndex(ctx, 0)
 	assert.NoError(t, err, "GetPassedProposalByIndex error")
@@ -587,10 +551,10 @@ func TestFinishProposalById(t *testing.T) {
 	assert.NoError(t, hardforksUpdate(ctx), "hardforksUpdate error")
 
 	ctx.Header.Coinbase = onChainDaoAdmin
-	writeContract(t, ctx, &system.OnChainDaoContract, "commitProposal", big.NewInt(1),
+	writeContract(t, ctx, ctx.Header.Coinbase, &system.OnChainDaoContract, "commitProposal", big.NewInt(1),
 		common.BigToAddress(big.NewInt(1)), common.BigToAddress(big.NewInt(2)),
 		big.NewInt(0), common.Hex2BytesFixed("0xred", 24))
-	writeContract(t, ctx, &system.OnChainDaoContract, "commitProposal", big.NewInt(2),
+	writeContract(t, ctx, ctx.Header.Coinbase, &system.OnChainDaoContract, "commitProposal", big.NewInt(2),
 		common.BigToAddress(big.NewInt(3)), common.BigToAddress(big.NewInt(4)),
 		big.NewInt(0), common.Hex2BytesFixed("0xdad", 24))
 
@@ -756,7 +720,7 @@ func readContract(t *testing.T, ctx *contracts.CallContext, contract *common.Add
 	data, err := abi.Pack(method, args...)
 	assert.NoError(t, err)
 
-	result, err := contracts.CallContract(ctx, contract, data)
+	result, err := contracts.CallContract(ctx, ctx.Header.Coinbase, contract, data)
 	assert.NoError(t, err)
 
 	// unpack data
@@ -766,13 +730,13 @@ func readContract(t *testing.T, ctx *contracts.CallContext, contract *common.Add
 	return ret[0]
 }
 
-func writeContract(t *testing.T, ctx *contracts.CallContext, contract *common.Address, method string, args ...interface{}) {
+func writeContract(t *testing.T, ctx *contracts.CallContext, from common.Address, contract *common.Address, method string, args ...interface{}) {
 	abi, err := abi.JSON(strings.NewReader(testAbi))
 	// execute contract
 	data, err := abi.Pack(method, args...)
 	assert.NoError(t, err)
 
-	_, err = contracts.CallContract(ctx, contract, data)
+	_, err = contracts.CallContract(ctx, from, contract, data)
 	assert.NoError(t, err)
 }
 

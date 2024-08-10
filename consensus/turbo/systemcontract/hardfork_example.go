@@ -37,10 +37,10 @@ func (h *ContractV2) GetName() string {
 }
 
 func (s *ContractV2) DoUpdate(state *state.StateDB, header *types.Header, chainContext core.ChainContext, config *params.ChainConfig) (err error) {
-	contractCode := common.FromHex(system.StakingV2Code)
+	contractCode := common.FromHex(system.StakingV1Code)
 	//write code to sys contract
 	state.SetCode(system.StakingContract, contractCode)
-	log.Debug("Write code to system contract account", "addr", system.StakingContract, "code", system.StakingV2Code)
+	log.Debug("Write code to system contract account", "addr", system.StakingContract, "code", system.StakingV1Code)
 	return
 }
 
@@ -78,7 +78,7 @@ func (s *AddressList) DoUpdate(state *state.StateDB, header *types.Header, chain
 		Header:       header,
 		ChainContext: chainContext,
 		ChainConfig:  config,
-	}, &system.AddressListContract, data)
+	}, header.Coinbase, &system.AddressListContract, data)
 	return err
 }
 
@@ -114,6 +114,6 @@ func (s *OnChainDao) DoUpdate(state *state.StateDB, header *types.Header, chainC
 		Header:       header,
 		ChainContext: chainContext,
 		ChainConfig:  config,
-	}, &system.OnChainDaoContract, data)
+	}, header.Coinbase, &system.OnChainDaoContract, data)
 	return err
 }

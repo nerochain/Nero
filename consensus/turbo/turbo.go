@@ -201,8 +201,6 @@ type Turbo struct {
 
 	stateFn StateFn // Function to get state by state root
 
-	rewardsUpdatePeroid uint64 // block rewards update perroid in number of blocks
-
 	chain consensus.ChainHeaderReader
 
 	// The fields below are for testing only
@@ -232,15 +230,14 @@ func New(chainConfig *params.ChainConfig, db ethdb.Database) *Turbo {
 	eventCheckRules, _ := lru.New(inmemoryAccesslist)
 
 	return &Turbo{
-		chainConfig:         chainConfig,
-		config:              &conf,
-		db:                  db,
-		recents:             recents,
-		signatures:          signatures,
-		accesslist:          accesslist,
-		eventCheckRules:     eventCheckRules,
-		signer:              types.LatestSignerForChainID(chainConfig.ChainID),
-		rewardsUpdatePeroid: blocksPerDay, // default value is one day
+		chainConfig:     chainConfig,
+		config:          &conf,
+		db:              db,
+		recents:         recents,
+		signatures:      signatures,
+		accesslist:      accesslist,
+		eventCheckRules: eventCheckRules,
+		signer:          types.LatestSignerForChainID(chainConfig.ChainID),
 	}
 }
 
@@ -255,22 +252,6 @@ func (c *Turbo) SetChain(chain consensus.ChainHeaderReader) {
 // SetStateFn sets the function to get state.
 func (c *Turbo) SetStateFn(fn StateFn) {
 	c.stateFn = fn
-}
-
-// InitRewardsUpdatePeroid init rewardsUpdatePeroid by reading from system contract,
-func (c *Turbo) InitRewardsUpdatePeroid(chain consensus.ChainHeaderReader, state *state.StateDB) error {
-	// Read from system contract
-	if peroid, err := systemcontract.GetRewardsUpdatePeroid(&contracts.CallContext{
-		Statedb:      state,
-		Header:       chain.CurrentHeader(),
-		ChainContext: newChainContext(chain, c),
-		ChainConfig:  c.chainConfig}); err != nil {
-		return err
-	} else {
-		c.rewardsUpdatePeroid = peroid
-
-	}
-	return nil
 }
 
 // Author implements consensus.Engine, returning the Ethereum address recovered
@@ -695,17 +676,6 @@ func (c *Turbo) prepareFinalize(chain consensus.ChainHeaderReader, header *types
 		}
 		//  decrease validator missed blocks counter at epoch
 		if err := systemcontract.DecreaseMissedBlocksCounter(vmCtx); err != nil {
-			return err
-		}
-	}
-	// UpdateRewardsInfo once a day
-	if header.Number.Uint64()%c.rewardsUpdatePeroid == 0 {
-		if err := systemcontract.UpdateRewardsInfo(&contracts.CallContext{
-			Statedb:      state,
-			Header:       header,
-			ChainContext: newChainContext(chain, c),
-			ChainConfig:  c.chainConfig,
-		}); err != nil {
 			return err
 		}
 	}

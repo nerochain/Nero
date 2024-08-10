@@ -12,17 +12,12 @@ import (
 	"github.com/ethereum/go-ethereum/consensus"
 	"github.com/ethereum/go-ethereum/contracts"
 	"github.com/ethereum/go-ethereum/contracts/system"
-	"github.com/ethereum/go-ethereum/core"
 	"github.com/ethereum/go-ethereum/core/vm"
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/holiman/uint256"
 )
 
 const TopValidatorNum uint8 = 21
-
-var (
-	blocksPerMonth = big.NewInt(60 * 60 * 24 / 3 * 30)
-)
 
 // AddrAscend implements the sort interface to allow sorting a list of addresses
 type AddrAscend []common.Address
@@ -59,7 +54,7 @@ func GetTopValidators(ctx *contracts.CallContext) ([]common.Address, error) {
 // UpdateActiveValidatorSet return the result of calling method `updateActiveValidatorSet` in Staking contract
 func UpdateActiveValidatorSet(ctx *contracts.CallContext, newValidators []common.Address) error {
 	const method = "updateActiveValidatorSet"
-	err := contractWrite(ctx, system.StakingContract, method, newValidators)
+	err := contractWrite(ctx, system.EngineCaller, system.StakingContract, method, newValidators)
 	if err != nil {
 		log.Error("UpdateActiveValidatorSet failed", "newValidators", newValidators, "err", err)
 	}
@@ -69,42 +64,9 @@ func UpdateActiveValidatorSet(ctx *contracts.CallContext, newValidators []common
 // DecreaseMissedBlocksCounter return the result of calling method `decreaseMissedBlocksCounter` in Staking contract
 func DecreaseMissedBlocksCounter(ctx *contracts.CallContext) error {
 	const method = "decreaseMissedBlocksCounter"
-	err := contractWrite(ctx, system.StakingContract, method)
+	err := contractWrite(ctx, system.EngineCaller, system.StakingContract, method)
 	if err != nil {
 		log.Error("DecreaseMissedBlocksCounter failed", "err", err)
-	}
-	return err
-}
-
-// GetRewardsUpdatePeroid return the blocks to update the reward in Staking contract
-func GetRewardsUpdatePeroid(ctx *contracts.CallContext) (uint64, error) {
-	const method = "rewardsUpdateEpoch"
-	result, err := contractRead(ctx, system.StakingContract, method)
-	if err != nil {
-		log.Error("GetRewardsUpdatePeroid contractRead failed", "err", err)
-		return 0, err
-	}
-	rewardsUpdateEpoch, ok := result.(*big.Int)
-	if !ok {
-		return 0, errors.New("GetRewardsUpdatePeroid: invalid result format")
-	}
-	return rewardsUpdateEpoch.Uint64(), nil
-}
-
-// UpdateRewardsInfo return the result of calling method `updateRewardsInfo` in Staking contract
-func UpdateRewardsInfo(ctx *contracts.CallContext) error {
-	const method = "updateRewardsInfo"
-	// Calculate rewards
-	rewardsPerBlock := big.NewInt(0)
-	month := new(big.Int).Div(ctx.Header.Number, blocksPerMonth).Int64()
-	// After 4 years, rewards is 0
-	if month < 48 {
-		rewardsByMonth := core.RewardsByMonth(ctx.ChainConfig.Turbo.Rule)
-		rewardsPerBlock = new(big.Int).Div(rewardsByMonth[month], blocksPerMonth)
-	}
-	err := contractWrite(ctx, system.StakingContract, method, rewardsPerBlock)
-	if err != nil {
-		log.Error("UpdateRewardsInfo failed", "err", err)
 	}
 	return err
 }
@@ -117,7 +79,7 @@ func DistributeBlockFee(ctx *contracts.CallContext, fee *uint256.Int) error {
 		log.Error("Can't pack data for distributeBlockFee", "error", err)
 		return err
 	}
-	if _, err := contracts.CallContractWithValue(ctx, ctx.Header.Coinbase, &system.StakingContract, data, fee); err != nil {
+	if _, err := contracts.CallContractWithValue(ctx, system.EngineCaller, &system.StakingContract, data, fee); err != nil {
 		log.Error("DistributeBlockFee failed", "fee", fee, "err", err)
 		return err
 	}
@@ -127,7 +89,7 @@ func DistributeBlockFee(ctx *contracts.CallContext, fee *uint256.Int) error {
 // LazyPunish return the result of calling method `lazyPunish` in Staking contract
 func LazyPunish(ctx *contracts.CallContext, validator common.Address) error {
 	const method = "lazyPunish"
-	err := contractWrite(ctx, system.StakingContract, method, validator)
+	err := contractWrite(ctx, system.EngineCaller, system.StakingContract, method, validator)
 	if err != nil {
 		log.Error("LazyPunish failed", "validator", validator, "err", err)
 	}
@@ -137,7 +99,7 @@ func LazyPunish(ctx *contracts.CallContext, validator common.Address) error {
 // DoubleSignPunish return the result of calling method `doubleSignPunish` in Staking contract
 func DoubleSignPunish(ctx *contracts.CallContext, punishHash common.Hash, validator common.Address) error {
 	const method = "doubleSignPunish"
-	err := contractWrite(ctx, system.StakingContract, method, punishHash, validator)
+	err := contractWrite(ctx, system.EngineCaller, system.StakingContract, method, punishHash, validator)
 	if err != nil {
 		log.Error("DoubleSignPunish failed", "punishHash", punishHash, "validator", validator, "err", err)
 	}
@@ -319,7 +281,7 @@ func GetPassedProposalByIndex(ctx *contracts.CallContext, idx uint32) (*Proposal
 // FinishProposalById finish passed proposal by id
 func FinishProposalById(ctx *contracts.CallContext, id *big.Int) error {
 	const method = "finishProposalById"
-	err := contractWrite(ctx, system.OnChainDaoContract, method, id)
+	err := contractWrite(ctx, ctx.Header.Coinbase, system.OnChainDaoContract, method, id)
 	if err != nil {
 		log.Error("FinishProposalById failed", "id", id, "err", err)
 	}
@@ -378,7 +340,7 @@ func contractReadBytes(ctx *contracts.CallContext, contract common.Address, abi 
 		log.Error("Can't pack data", "method", method, "error", err)
 		return nil, err
 	}
-	result, err := contracts.CallContract(ctx, &contract, data)
+	result, err := contracts.CallContract(ctx, ctx.Header.Coinbase, &contract, data)
 	if err != nil {
 		log.Error("Failed to execute", "method", method, "err", err)
 		return nil, err
@@ -387,13 +349,13 @@ func contractReadBytes(ctx *contracts.CallContext, contract common.Address, abi 
 }
 
 // contractWrite perform write contract
-func contractWrite(ctx *contracts.CallContext, contract common.Address, method string, args ...interface{}) error {
+func contractWrite(ctx *contracts.CallContext, from common.Address, contract common.Address, method string, args ...interface{}) error {
 	data, err := system.ABIPack(contract, method, args...)
 	if err != nil {
 		log.Error("Can't pack data", "method", method, "error", err)
 		return err
 	}
-	if _, err := contracts.CallContract(ctx, &contract, data); err != nil {
+	if _, err := contracts.CallContract(ctx, from, &contract, data); err != nil {
 		log.Error("Failed to execute", "method", method, "err", err)
 		return err
 	}

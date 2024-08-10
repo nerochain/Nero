@@ -175,10 +175,8 @@ func flushAlloc(g *Genesis, db ethdb.Database, triedb *triedb.Database, block *t
 		head := block.Header()
 		gInit := &genesisInit{statedb, head, g}
 		for name, initSystemContract := range map[string]func() error{
-			"Staking":       gInit.initStaking,
-			"CommunityPool": gInit.initCommunityPool,
-			"BonusPool":     gInit.initBonusPool,
-			"GenesisLock":   gInit.initGenesisLock,
+			"Staking":     gInit.initStaking,
+			"GenesisLock": gInit.initGenesisLock,
 		} {
 			if err = initSystemContract(); err != nil {
 				log.Crit("Failed to init system contract", "contract", name, "err", err)
@@ -486,10 +484,8 @@ func (g *Genesis) ToBlock() *types.Block {
 		// init system contract
 		gInit := &genesisInit{statedb, head, g}
 		for name, initSystemContract := range map[string]func() error{
-			"Staking":       gInit.initStaking,
-			"CommunityPool": gInit.initCommunityPool,
-			"BonusPool":     gInit.initBonusPool,
-			"GenesisLock":   gInit.initGenesisLock,
+			"Staking":     gInit.initStaking,
+			"GenesisLock": gInit.initGenesisLock,
 		} {
 			if err = initSystemContract(); err != nil {
 				log.Crit("Failed to init system contract", "contract", name, "err", err)
@@ -723,7 +719,8 @@ func decodePrealloc(data string) types.GenesisAlloc {
 		FirstLockPeriod *big.Int `rlp:"optional"`
 		ReleasePeriod   *big.Int `rlp:"optional"`
 		ReleaseCnt      *big.Int `rlp:"optional"`
-		RuEpoch         *big.Int `rlp:"optional"`
+		TotalRewards    *big.Int `rlp:"optional"`
+		RewardsPerBlock *big.Int `rlp:"optional"`
 		PeriodTime      *big.Int `rlp:"optional"`
 		LockedAccounts  []locked `rlp:"optional"`
 	}
@@ -760,7 +757,8 @@ func decodePrealloc(data string) types.GenesisAlloc {
 					FirstLockPeriod: account.Misc.Init.FirstLockPeriod,
 					ReleasePeriod:   account.Misc.Init.ReleasePeriod,
 					ReleaseCnt:      account.Misc.Init.ReleaseCnt,
-					RuEpoch:         account.Misc.Init.RuEpoch,
+					TotalRewards:    account.Misc.Init.TotalRewards,
+					RewardsPerBlock: account.Misc.Init.RewardsPerBlock,
 					PeriodTime:      account.Misc.Init.PeriodTime,
 				}
 				if account.Misc.Init.Admin != nil {
