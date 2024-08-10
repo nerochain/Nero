@@ -39,6 +39,7 @@ import (
 )
 
 var Memsize memsizeui.Handler
+var ID string
 
 var (
 	verbosityFlag = &cli.IntFlag{

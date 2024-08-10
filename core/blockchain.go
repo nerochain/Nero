@@ -23,6 +23,7 @@ import (
 	"io"
 	"math/big"
 	"runtime"
+	"sort"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -96,10 +97,12 @@ var (
 )
 
 const (
-	bodyCacheLimit     = 256
-	blockCacheLimit    = 256
-	receiptsCacheLimit = 32
-	txLookupCacheLimit = 1024
+	bodyCacheLimit      = 256
+	blockCacheLimit     = 256
+	receiptsCacheLimit  = 32
+	txLookupCacheLimit  = 1024
+	maxFutureBlocks     = 256
+	maxTimeFutureBlocks = 30
 
 	// BlockChainVersion ensures that an incompatible database forces a resync from scratch.
 	//
@@ -254,6 +257,7 @@ type BlockChain struct {
 
 	txLookupLock  sync.RWMutex
 	txLookupCache *lru.Cache[common.Hash, txLookup]
+	futureBlocks  *lru.Cache[common.Hash, *types.Block] // future blocks are blocks added for later processing
 
 	wg            sync.WaitGroup
 	quit          chan struct{} // shutdown signal, closed in Stop.
@@ -328,6 +332,7 @@ func NewBlockChain(db ethdb.Database, cacheConfig *CacheConfig, genesis *Genesis
 		receiptsCache: lru.NewCache[common.Hash, []*types.Receipt](receiptsCacheLimit),
 		blockCache:    lru.NewCache[common.Hash, *types.Block](blockCacheLimit),
 		txLookupCache: lru.NewCache[common.Hash, txLookup](txLookupCacheLimit),
+		futureBlocks:  lru.NewCache[common.Hash, *types.Block](maxFutureBlocks),
 		engine:        engine,
 		vmConfig:      vmConfig,
 		logger:        vmConfig.Tracer,
@@ -511,6 +516,9 @@ func NewBlockChain(db ethdb.Database, cacheConfig *CacheConfig, genesis *Genesis
 		}
 		rawdb.WriteChainConfig(db, genesisHash, chainConfig)
 	}
+	// Start future block processor.
+	bc.wg.Add(1)
+	go bc.futureBlocksLoop()
 	// Start attestation processor
 	// if bc.isTurboEngine {
 	// 	bc.wg.Add(1)
@@ -974,6 +982,7 @@ func (bc *BlockChain) setHeadBeyondRoot(head uint64, time uint64, root common.Ha
 	bc.receiptsCache.Purge()
 	bc.blockCache.Purge()
 	bc.txLookupCache.Purge()
+	bc.futureBlocks.Purge()
 
 	if bc.isTurboEngine {
 		bc.FutureAttessCache.Purge()
@@ -1237,6 +1246,24 @@ func (bc *BlockChain) StopInsert() {
 // insertStopped returns true after StopInsert has been called.
 func (bc *BlockChain) insertStopped() bool {
 	return bc.procInterrupt.Load()
+}
+
+func (bc *BlockChain) procFutureBlocks() {
+	blocks := make([]*types.Block, 0, bc.futureBlocks.Len())
+	for _, hash := range bc.futureBlocks.Keys() {
+		if block, exist := bc.futureBlocks.Peek(hash); exist {
+			blocks = append(blocks, block)
+		}
+	}
+	if len(blocks) > 0 {
+		sort.Slice(blocks, func(i, j int) bool {
+			return blocks[i].NumberU64() < blocks[j].NumberU64()
+		})
+		// Insert one by one as chain insertion needs contiguous ancestry between blocks
+		for i := range blocks {
+			bc.InsertChain(blocks[i : i+1])
+		}
+	}
 }
 
 // WriteStatus status of write
@@ -1643,6 +1670,8 @@ func (bc *BlockChain) writeBlockAndSetHead(block *types.Block, receipts []*types
 	if status == CanonStatTy {
 		bc.writeHeadBlock(block)
 	}
+	bc.futureBlocks.Remove(block.Hash())
+
 	if status == CanonStatTy {
 		bc.chainFeed.Send(ChainEvent{Block: block, Hash: block.Hash(), Logs: logs})
 		if len(logs) > 0 {
@@ -1660,6 +1689,18 @@ func (bc *BlockChain) writeBlockAndSetHead(block *types.Block, receipts []*types
 		bc.chainSideFeed.Send(ChainSideEvent{Block: block})
 	}
 	return status, nil
+}
+
+// addFutureBlock checks if the block is within the max allowed window to get
+// accepted for future processing, and returns an error if the block is too far
+// ahead and was not added.
+func (bc *BlockChain) addFutureBlock(block *types.Block) error {
+	max := uint64(time.Now().Unix() + maxTimeFutureBlocks)
+	if block.Time() > max {
+		return fmt.Errorf("future block timestamp %v > allowed %v", block.Time(), max)
+	}
+	bc.futureBlocks.Add(block.Hash(), block)
+	return nil
 }
 
 // InsertChain attempts to insert the given batch of blocks in to the canonical
@@ -1799,10 +1840,25 @@ func (bc *BlockChain) insertChain(chain types.Blocks, setHead bool) (int, error)
 			_, err := bc.recoverAncestors(block)
 			return it.index, err
 		}
+		// First block is future, shove it (and all children) to the future queue (unknown ancestor)
+	case errors.Is(err, consensus.ErrFutureBlock) || (errors.Is(err, consensus.ErrUnknownAncestor) && bc.futureBlocks.Contains(it.first().ParentHash())):
+		for block != nil && (it.index == 0 || errors.Is(err, consensus.ErrUnknownAncestor)) {
+			log.Debug("Future block, postponing import", "number", block.Number(), "hash", block.Hash())
+			if err := bc.addFutureBlock(block); err != nil {
+				return it.index, err
+			}
+			block, err = it.next()
+		}
+		stats.queued += it.processed()
+		stats.ignored += it.remaining()
+
+		// If there are any still remaining, mark as ignored
+		return it.index, err
 	// Some other error(except ErrKnownBlock) occurred, abort.
 	// ErrKnownBlock is allowed here since some known blocks
 	// still need re-execution to generate snapshots that are missing
 	case err != nil && !errors.Is(err, ErrKnownBlock):
+		bc.futureBlocks.Remove(block.Hash())
 		stats.ignored += len(it.chain)
 		bc.reportBlock(block, nil, err)
 		return it.index, err
@@ -1962,6 +2018,21 @@ func (bc *BlockChain) insertChain(chain types.Blocks, setHead bool) (int, error)
 				"diff", block.Difficulty(), "elapsed", common.PrettyDuration(time.Since(start)),
 				"txs", len(block.Transactions()), "gas", block.GasUsed(), "uncles", len(block.Uncles()),
 				"root", block.Root())
+		}
+	}
+
+	// Any blocks remaining here? The only ones we care about are the future ones
+	if block != nil && errors.Is(err, consensus.ErrFutureBlock) {
+		if err := bc.addFutureBlock(block); err != nil {
+			return it.index, err
+		}
+		block, err = it.next()
+
+		for ; block != nil && errors.Is(err, consensus.ErrUnknownAncestor); block, err = it.next() {
+			if err := bc.addFutureBlock(block); err != nil {
+				return it.index, err
+			}
+			stats.queued++
 		}
 	}
 	stats.ignored += it.remaining()
@@ -2502,6 +2573,22 @@ func (bc *BlockChain) SetCanonical(head *types.Block) (common.Hash, error) {
 	}
 	log.Info("Chain head was updated", context...)
 	return head.Hash(), nil
+}
+
+// futureBlocksLoop processes the 'future block' queue.
+func (bc *BlockChain) futureBlocksLoop() {
+	defer bc.wg.Done()
+
+	futureTimer := time.NewTicker(5 * time.Second)
+	defer futureTimer.Stop()
+	for {
+		select {
+		case <-futureTimer.C:
+			bc.procFutureBlocks()
+		case <-bc.quit:
+			return
+		}
+	}
 }
 
 // skipBlock returns 'true', if the block being imported can be skipped over, meaning
