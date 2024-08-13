@@ -1654,177 +1654,6 @@ const (
       "type": "function"
     }
   ]`
-	// AddressListABI contains methods to interactive with AddressList contract.
-	AddressListABI = `[
-		{
-			"inputs": [
-				{
-					"internalType": "address",
-					"name": "_admin",
-					"type": "address"
-				}
-			],
-			"name": "initialize",
-			"outputs": [],
-			"stateMutability": "nonpayable",
-			"type": "function"
-		},
-		{
-			"inputs": [],
-			"name": "getBlacksFrom",
-			"outputs": [
-				{
-					"internalType": "address[]",
-					"name": "",
-					"type": "address[]"
-				}
-			],
-			"stateMutability": "view",
-			"type": "function"
-		},
-		{
-			"inputs": [],
-			"name": "getBlacksTo",
-			"outputs": [
-				{
-					"internalType": "address[]",
-					"name": "",
-					"type": "address[]"
-				}
-			],
-			"stateMutability": "view",
-			"type": "function"
-		},
-		{
-			"inputs": [
-				{
-					"internalType": "uint32",
-					"name": "i",
-					"type": "uint32"
-				}
-			],
-			"name": "getRuleByIndex",
-			"outputs": [
-				{
-					"internalType": "bytes32",
-					"name": "",
-					"type": "bytes32"
-				},
-				{
-					"internalType": "uint128",
-					"name": "",
-					"type": "uint128"
-				},
-				{
-					"internalType": "enum AddressList.CheckType",
-					"name": "",
-					"type": "uint8"
-				}
-			],
-			"stateMutability": "view",
-			"type": "function"
-		},
-		{
-			"inputs": [],
-			"name": "rulesLen",
-			"outputs": [
-				{
-					"internalType": "uint32",
-					"name": "",
-					"type": "uint32"
-				}
-			],
-			"stateMutability": "view",
-			"type": "function"
-		}
-	]`
-
-	// OnChainDaoABI contains methods to interactive with OnChainDao contract.
-	OnChainDaoABI = `[
-		{
-			"inputs": [
-				{
-					"internalType": "address",
-					"name": "_admin",
-					"type": "address"
-				}
-			],
-			"name": "initialize",
-			"outputs": [],
-			"stateMutability": "nonpayable",
-			"type": "function"
-		},
-		{
-			"inputs": [],
-			"name": "getPassedProposalCount",
-			"outputs": [
-				{
-					"internalType": "uint32",
-					"name": "",
-					"type": "uint32"
-				}
-			],
-			"stateMutability": "view",
-			"type": "function"
-		},
-		{
-			"inputs": [
-				{
-					"internalType": "uint32",
-					"name": "index",
-					"type": "uint32"
-				}
-			],
-			"name": "getPassedProposalByIndex",
-			"outputs": [
-				{
-					"internalType": "uint256",
-					"name": "id",
-					"type": "uint256"
-				},
-				{
-					"internalType": "uint256",
-					"name": "action",
-					"type": "uint256"
-				},
-				{
-					"internalType": "address",
-					"name": "from",
-					"type": "address"
-				},
-				{
-					"internalType": "address",
-					"name": "to",
-					"type": "address"
-				},
-				{
-					"internalType": "uint256",
-					"name": "value",
-					"type": "uint256"
-				},
-				{
-					"internalType": "bytes",
-					"name": "data",
-					"type": "bytes"
-				}
-			],
-			"stateMutability": "view",
-			"type": "function"
-		},
-		{
-			"inputs": [
-				{
-					"internalType": "uint256",
-					"name": "id",
-					"type": "uint256"
-				}
-			],
-			"name": "finishProposalById",
-			"outputs": [],
-			"stateMutability": "nonpayable",
-			"type": "function"
-		}
-	]`
 )
 
 // DevMappingPosition is the position of the state variable `devs`.
@@ -1862,9 +1691,7 @@ var (
 
 var (
 	StakingContract     = common.HexToAddress("0x000000000000000000000000000000000000F000")
-	GenesisLockContract = common.HexToAddress("0x000000000000000000000000000000000000F001") //F003
-	AddressListContract = common.HexToAddress("0x000000000000000000000000000000000000F002")
-	OnChainDaoContract  = common.HexToAddress("0x000000000000000000000000000000000000F003")
+	GenesisLockContract = common.HexToAddress("0x000000000000000000000000000000000000F001")
 
 	EngineCaller = common.HexToAddress("0x000000000000000000004e65726F456e67696e65")
 
@@ -1878,8 +1705,6 @@ func init() {
 	for addr, rawAbi := range map[common.Address]string{
 		StakingContract:     StakingABI,
 		GenesisLockContract: GenesisLockABI,
-		AddressListContract: AddressListABI,
-		OnChainDaoContract:  OnChainDaoABI,
 	} {
 		if abi, err := abi.JSON(strings.NewReader(rawAbi)); err != nil {
 			panic(err)

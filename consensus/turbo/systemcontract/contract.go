@@ -138,76 +138,22 @@ func IsDoubleSignPunished(ctx *contracts.CallContext, punishHash common.Hash) (b
 
 // GetBlacksFrom return the access tx-from list
 func GetBlacksFrom(ctx *contracts.CallContext) ([]common.Address, error) {
-	const method = "getBlacksFrom"
-	result, err := contractRead(ctx, system.AddressListContract, method)
-	if err != nil {
-		log.Error("GetBlacksFrom contractRead failed", "err", err)
-		return []common.Address{}, err
-	}
-	from, ok := result.([]common.Address)
-	if !ok {
-		return []common.Address{}, errors.New("GetBlacksFrom: invalid result format")
-	}
-	return from, nil
+	return []common.Address{}, nil
 }
 
 // GetBlacksTo return access tx-to list
 func GetBlacksTo(ctx *contracts.CallContext) ([]common.Address, error) {
-	const method = "getBlacksTo"
-	result, err := contractRead(ctx, system.AddressListContract, method)
-	if err != nil {
-		log.Error("GetBlacksTo contractRead failed", "err", err)
-		return []common.Address{}, err
-	}
-	to, ok := result.([]common.Address)
-	if !ok {
-		return []common.Address{}, errors.New("GetBlacksTo: invalid result format")
-	}
-	return to, nil
+	return []common.Address{}, nil
 }
 
 // GetRuleByIndex return event log rules
 func GetRuleByIndex(ctx *contracts.CallContext, idx uint32) (common.Hash, int, common.AddressCheckType, error) {
-	const method = "getRuleByIndex"
-	results, err := contractReadAll(ctx, system.AddressListContract, method, idx)
-	if err != nil {
-		log.Error("GetRuleByIndex contractRead failed", "err", err)
-		return common.Hash{}, 0, common.CheckNone, err
-	}
-	if len(results) != 3 {
-		return common.Hash{}, 0, common.CheckNone, errors.New("GetRuleByIndex: invalid results' length")
-	}
-	var (
-		ok    bool
-		sig   common.Hash
-		index *big.Int
-		ctype uint8
-	)
-	if sig, ok = results[0].([32]byte); !ok {
-		return common.Hash{}, 0, common.CheckNone, errors.New("GetRuleByIndex: invalid result sig format")
-	}
-	if index, ok = results[1].(*big.Int); !ok {
-		return common.Hash{}, 0, common.CheckNone, errors.New("GetRuleByIndex: invalid result index format")
-	}
-	if ctype, ok = results[2].(uint8); !ok {
-		return common.Hash{}, 0, common.CheckNone, errors.New("GetRuleByIndex: invalid result checktype format")
-	}
-	return sig, int(index.Int64()), common.AddressCheckType(ctype), nil
+	return common.Hash{}, 0, common.CheckNone, nil
 }
 
 // GetRulesLen return event log rules length
 func GetRulesLen(ctx *contracts.CallContext) (uint32, error) {
-	const method = "rulesLen"
-	result, err := contractRead(ctx, system.AddressListContract, method)
-	if err != nil {
-		log.Error("GetRulesLen contractRead failed", "err", err)
-		return 0, err
-	}
-	n, ok := result.(uint32)
-	if !ok {
-		return 0, errors.New("GetRulesLen: invalid result format")
-	}
-	return n, nil
+	return 0, nil
 }
 
 // IsDeveloperVerificationEnabled returns developer verification flags (devVerifyEnabled,checkInnerCreation).
@@ -224,86 +170,42 @@ func GetRulesLen(ctx *contracts.CallContext) (uint32, error) {
 // and after optimizer enabled, the `initialized`, `devVerifyEnabled`, `checkInnerCreation` and `admin` will be packed, and stores at slot 0,
 // `pendingAdmin` stores at slot 1, and the position for `devs` is 2.
 func IsDeveloperVerificationEnabled(state consensus.StateReader) (devVerifyEnabled, checkInnerCreation bool) {
-	compactValue := state.GetState(system.AddressListContract, common.Hash{}).Bytes()
-	// Layout of slot 0:
-	// [0   -    8][9-28][        29        ][       30       ][    31     ]
-	// [zero bytes][admin][checkInnerCreation][devVerifyEnabled][initialized]
-	devVerifyEnabled = compactValue[30] == 0x01
-	checkInnerCreation = compactValue[29] == 0x01
-	return
+	return false, false
 }
 
 // LastBlackUpdatedNumber returns LastBlackUpdatedNumber of address list
 func LastBlackUpdatedNumber(state consensus.StateReader) uint64 {
-	value := state.GetState(system.AddressListContract, system.BlackLastUpdatedNumberPosition)
-	return value.Big().Uint64()
+	return 0
 }
 
 // LastRulesUpdatedNumber returns LastRulesUpdatedNumber of address list
 func LastRulesUpdatedNumber(state consensus.StateReader) uint64 {
-	value := state.GetState(system.AddressListContract, system.RulesLastUpdatedNumberPosition)
-	return value.Big().Uint64()
+	return 0
 }
 
 // GetPassedProposalCount returns passed proposal count
 func GetPassedProposalCount(ctx *contracts.CallContext) (uint32, error) {
-	const method = "getPassedProposalCount"
-	result, err := contractRead(ctx, system.OnChainDaoContract, method)
-	if err != nil {
-		log.Error("GetPassedProposalCount contractRead failed", "err", err)
-		return 0, err
-	}
-	count, ok := result.(uint32)
-	if !ok {
-		return 0, errors.New("GetPassedProposalCount: invalid result format")
-	}
-	return count, nil
+	return 0, nil
 }
 
 // GetPassedProposalByIndex returns passed proposal by index
 func GetPassedProposalByIndex(ctx *contracts.CallContext, idx uint32) (*Proposal, error) {
-	const method = "getPassedProposalByIndex"
-	abi := system.ABI(system.OnChainDaoContract)
-	result, err := contractReadBytes(ctx, system.OnChainDaoContract, &abi, method, idx)
-	if err != nil {
-		log.Error("GetPassedProposalByIndex contractReadBytes failed", "idx", idx, "err", err)
-		return nil, err
-	}
-	// unpack data
-	prop := &Proposal{}
-	if err = abi.UnpackIntoInterface(prop, method, result); err != nil {
-		log.Error("GetPassedProposalByIndex UnpackIntoInterface failed", "idx", idx, "err", err)
-		return nil, err
-	}
-	return prop, nil
+	return nil, nil
 }
 
 // FinishProposalById finish passed proposal by id
 func FinishProposalById(ctx *contracts.CallContext, id *big.Int) error {
-	const method = "finishProposalById"
-	err := contractWrite(ctx, ctx.Header.Coinbase, system.OnChainDaoContract, method, id)
-	if err != nil {
-		log.Error("FinishProposalById failed", "id", id, "err", err)
-	}
-	return err
+	return nil
 }
 
 // ExecuteProposal executes proposal
 func ExecuteProposal(ctx *contracts.CallContext, prop *Proposal) error {
-	value, _ := uint256.FromBig(prop.Value)
-	_, err := contracts.CallContractWithValue(ctx, prop.From, &prop.To, prop.Data, value)
-	if err != nil {
-		log.Error("ExecuteProposal failed", "proposal", prop, "err", err)
-	}
-	return err
+	return nil
 }
 
 // ExecuteProposalWithGivenEVM executes proposal by given evm
 func ExecuteProposalWithGivenEVM(evm *vm.EVM, prop *Proposal, gas uint64) (ret []byte, err error) {
-	if ret, err = contracts.VMCallContract(evm, prop.From, &prop.To, prop.Data, gas); err != nil {
-		log.Error("ExecuteProposalWithGivenEVM failed", "proposal", prop, "err", err)
-	}
-	return
+	return nil, nil
 }
 
 // contractRead perform contract read

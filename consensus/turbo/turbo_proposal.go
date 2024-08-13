@@ -12,7 +12,6 @@ import (
 	"github.com/ethereum/go-ethereum/consensus"
 	"github.com/ethereum/go-ethereum/consensus/turbo/systemcontract"
 	"github.com/ethereum/go-ethereum/contracts"
-	"github.com/ethereum/go-ethereum/contracts/system"
 	"github.com/ethereum/go-ethereum/core/state"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/core/vm"
@@ -235,17 +234,6 @@ func buildProposalExecutedEventData(prop *systemcontract.Proposal) []byte {
 
 // IsSysTransaction checks whether a specific transaction is a system transaction.
 func (c *Turbo) IsSysTransaction(sender common.Address, tx *types.Transaction, header *types.Header) bool {
-	if tx.To() == nil {
-		return false
-	}
-	to := tx.To()
-	if sender == header.Coinbase && *to == proposalTxMark && tx.GasPrice().Sign() == 0 {
-		return true
-	}
-	// Make sure the miner can NOT call the system contract through a normal transaction.
-	if sender == header.Coinbase && *to == system.OnChainDaoContract {
-		return true
-	}
 	return false
 }
 

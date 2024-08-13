@@ -2,7 +2,6 @@ package systemcontract
 
 import (
 	"github.com/ethereum/go-ethereum/common"
-	"github.com/ethereum/go-ethereum/contracts"
 	"github.com/ethereum/go-ethereum/contracts/system"
 	"github.com/ethereum/go-ethereum/core"
 	"github.com/ethereum/go-ethereum/core/state"
@@ -12,12 +11,6 @@ import (
 )
 
 var (
-	addressListAdmin        = common.HexToAddress("0x0000000000000000000000000000000000000000")
-	addressListAdminTestnet = common.HexToAddress("0x0000000000000000000000000000000000000000")
-
-	onChainDaoAdmin        = common.HexToAddress("0x0000000000000000000000000000000000000000")
-	onChainDaoAdminTestnet = common.HexToAddress("0x0000000000000000000000000000000000000000")
-
 	AdminDevnet common.Address
 )
 
@@ -53,33 +46,7 @@ func (s *AddressList) GetName() string {
 }
 
 func (s *AddressList) DoUpdate(state *state.StateDB, header *types.Header, chainContext core.ChainContext, config *params.ChainConfig) (err error) {
-	contractCode := common.FromHex(system.AddressListCode)
-	//write addressListCode to sys contract
-	state.SetCode(system.AddressListContract, contractCode)
-	log.Debug("Write code to system contract account", "addr", system.AddressListContract, "code", system.AddressListCode)
-
-	method := "initialize"
-
-	admin := addressListAdminTestnet
-	if config.ChainID.Cmp(params.MainnetChainConfig.ChainID) == 0 {
-		admin = addressListAdmin
-	} else if config.ChainID.Cmp(params.TestnetChainConfig.ChainID) != 0 && (AdminDevnet != common.Address{}) {
-		admin = AdminDevnet
-	}
-
-	data, err := system.ABIPack(system.AddressListContract, method, admin)
-	if err != nil {
-		log.Error("Can't pack data for initialize", "error", err)
-		return err
-	}
-
-	_, err = contracts.CallContract(&contracts.CallContext{
-		Statedb:      state,
-		Header:       header,
-		ChainContext: chainContext,
-		ChainConfig:  config,
-	}, header.Coinbase, &system.AddressListContract, data)
-	return err
+	return nil
 }
 
 // OnChainDao is used to manage proposal
@@ -91,29 +58,5 @@ func (s *OnChainDao) GetName() string {
 }
 
 func (s *OnChainDao) DoUpdate(state *state.StateDB, header *types.Header, chainContext core.ChainContext, config *params.ChainConfig) (err error) {
-	contractCode := common.FromHex(system.OnChainDaoCode)
-	//write Code to sys contract
-	state.SetCode(system.OnChainDaoContract, contractCode)
-	log.Debug("Write code to system contract account", "addr", system.OnChainDaoContract, "code", system.OnChainDaoCode)
-
-	method := "initialize"
-
-	admin := onChainDaoAdminTestnet
-	if config.ChainID.Cmp(params.MainnetChainConfig.ChainID) == 0 {
-		admin = onChainDaoAdmin
-	} else if config.ChainID.Cmp(params.TestChainConfig.ChainID) != 0 && (AdminDevnet != common.Address{}) {
-		admin = AdminDevnet
-	}
-	data, err := system.ABIPack(system.OnChainDaoContract, method, admin)
-	if err != nil {
-		log.Error("Can't pack data for initialize", "error", err)
-		return err
-	}
-	_, err = contracts.CallContract(&contracts.CallContext{
-		Statedb:      state,
-		Header:       header,
-		ChainContext: chainContext,
-		ChainConfig:  config,
-	}, header.Coinbase, &system.OnChainDaoContract, data)
-	return err
+	return nil
 }
