@@ -471,7 +471,7 @@ func (c *MockConsensusEngine) Prepare(chain consensus.ChainHeaderReader, header 
 }
 
 func (c *MockConsensusEngine) Finalize(chain consensus.ChainHeaderReader, header *types.Header, state *state.StateDB, body *types.Body,
-	receipts *[]*types.Receipt, punishTxs []*types.Transaction, proposalTxs []*types.Transaction) error {
+	receipts *[]*types.Receipt, punishTxs []*types.Transaction) error {
 	return nil
 }
 

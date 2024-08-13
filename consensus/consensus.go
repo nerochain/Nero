@@ -95,7 +95,7 @@ type Engine interface {
 	// Note: The block header and state database might be updated to reflect any
 	// consensus rules that happen at finalization (e.g. block rewards).
 	Finalize(chain ChainHeaderReader, header *types.Header, state *state.StateDB, body *types.Body,
-		receipts *[]*types.Receipt, punishTxs []*types.Transaction, proposalTxs []*types.Transaction) error
+		receipts *[]*types.Receipt, punishTxs []*types.Transaction) error
 
 	// FinalizeAndAssemble runs any post-transaction state modifications (e.g. block
 	// rewards) and assembles the final block.
@@ -180,9 +180,6 @@ type TurboEngine interface {
 
 	ApplyDoubleSignPunishTx(evm *vm.EVM, sender common.Address, tx *types.Transaction) (ret []byte, vmerr error, err error)
 
-	// IsSysTransaction checks whether a specific transaction is a system transaction.
-	IsSysTransaction(sender common.Address, tx *types.Transaction, header *types.Header) bool
-
 	// CanCreate determines where a given address can create a new contract.
 	CanCreate(state StateReader, addr common.Address, isContract bool, height *big.Int) bool
 
@@ -191,12 +188,6 @@ type TurboEngine interface {
 
 	// CreateEvmAccessFilter returns a EvmAccessFilter if necessary.
 	CreateEvmAccessFilter(header *types.Header, parentState *state.StateDB) vm.EvmAccessFilter
-
-	//Methods for debug trace
-
-	// ApplyProposalTx applies a system-transaction using a given evm,
-	// the main purpose of this method is for tracing a system-transaction.
-	ApplyProposalTx(evm *vm.EVM, state *state.StateDB, txIndex int, sender common.Address, tx *types.Transaction) (ret []byte, vmerr error, err error)
 }
 
 type StateReader interface {

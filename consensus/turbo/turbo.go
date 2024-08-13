@@ -602,7 +602,7 @@ func (c *Turbo) Prepare(chain consensus.ChainHeaderReader, header *types.Header)
 // Finalize implements consensus.Engine, ensuring no uncles are set, nor block
 // rewards given.
 func (c *Turbo) Finalize(chain consensus.ChainHeaderReader, header *types.Header, state *state.StateDB, body *types.Body,
-	receipts *[]*types.Receipt, punishTxs []*types.Transaction, proposalTxs []*types.Transaction) error {
+	receipts *[]*types.Receipt, punishTxs []*types.Transaction) error {
 	txs := &body.Transactions
 	if nil == txs {
 		ntxs := make([]*types.Transaction, 0)
@@ -610,7 +610,7 @@ func (c *Turbo) Finalize(chain consensus.ChainHeaderReader, header *types.Header
 	}
 
 	// Preparing jobs before finalize
-	if err := c.prepareFinalize(chain, header, state, txs, receipts, punishTxs, proposalTxs, false); err != nil {
+	if err := c.prepareFinalize(chain, header, state, txs, receipts, punishTxs, false); err != nil {
 		return err
 	}
 	// No block rewards in PoA, so the state remains as is and uncles are dropped
@@ -629,7 +629,7 @@ func (c *Turbo) FinalizeAndAssemble(chain consensus.ChainHeaderReader, header *t
 		}
 	}()
 	// Preparing jobs before finalize
-	if err := c.prepareFinalize(chain, header, state, &body.Transactions, &receipts, nil, nil, true); err != nil {
+	if err := c.prepareFinalize(chain, header, state, &body.Transactions, &receipts, nil, true); err != nil {
 		panic(err)
 	}
 	// No block rewards in PoS, so the state remains as is and uncles are dropped
@@ -650,7 +650,7 @@ func (c *Turbo) FinalizeAndAssemble(chain consensus.ChainHeaderReader, header *t
 // * punish double sign
 // * process proposal tx (after Gravitation hardfork)
 func (c *Turbo) prepareFinalize(chain consensus.ChainHeaderReader, header *types.Header,
-	state *state.StateDB, txs *[]*types.Transaction, receipts *[]*types.Receipt, punishTxs []*types.Transaction, proposalTxs []*types.Transaction, mined bool) error {
+	state *state.StateDB, txs *[]*types.Transaction, receipts *[]*types.Receipt, punishTxs []*types.Transaction, mined bool) error {
 	// punish validator if low difficulty block found
 	if header.Difficulty.Cmp(diffInTurn) != 0 {
 		if err := c.tryLazyPunish(chain, header, state); err != nil {
@@ -680,11 +680,7 @@ func (c *Turbo) prepareFinalize(chain consensus.ChainHeaderReader, header *types
 		}
 	}
 	// punish double sign
-	if err := c.punishDoubleSign(chain, header, state, txs, receipts, punishTxs, mined); err != nil {
-		return err
-	}
-	// process proposal
-	return c.processProposalTx(chain, header, state, txs, receipts, proposalTxs, mined)
+	return c.punishDoubleSign(chain, header, state, txs, receipts, punishTxs, mined)
 }
 
 // updateValidators updates validators info to system contracts

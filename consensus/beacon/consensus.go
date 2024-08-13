@@ -350,9 +350,9 @@ func (beacon *Beacon) Prepare(chain consensus.ChainHeaderReader, header *types.H
 
 // Finalize implements consensus.Engine and processes withdrawals on top.
 func (beacon *Beacon) Finalize(chain consensus.ChainHeaderReader, header *types.Header, state *state.StateDB, body *types.Body,
-	receipts *[]*types.Receipt, punishTxs []*types.Transaction, proposalTxs []*types.Transaction) error {
+	receipts *[]*types.Receipt, punishTxs []*types.Transaction) error {
 	if !beacon.IsPoSHeader(header) {
-		beacon.ethone.Finalize(chain, header, state, body, nil, nil, nil)
+		beacon.ethone.Finalize(chain, header, state, body, nil, nil)
 		return nil
 	}
 	// Withdrawals processing.
@@ -384,7 +384,7 @@ func (beacon *Beacon) FinalizeAndAssemble(chain consensus.ChainHeaderReader, hea
 		}
 	}
 	// Finalize and assemble the block.
-	beacon.Finalize(chain, header, state, body, nil, nil, nil)
+	beacon.Finalize(chain, header, state, body, nil, nil)
 
 	// Assign the final state root to header.
 	header.Root = state.IntermediateRoot(true)

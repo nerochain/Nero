@@ -208,7 +208,6 @@ type txTraceTask struct {
 	statedb              *state.StateDB // Intermediate state prepped for tracing
 	index                int            // Transaction offset in the block
 	isDoubleSignPunishTx bool           // Is punish double sign transaction
-	isProposalTxs        bool           // Is system transaction
 }
 
 // TraceChain returns the structured logs created during the execution of EVM
@@ -293,17 +292,13 @@ func (api *API) traceChain(start, end *types.Block, config *TraceConfig, closed 
 						res                  interface{}
 						err                  error
 						isDoubleSignPunishTx bool
-						isProposalTxs        bool
 					)
 					if api.isTurboEngine {
 						isDoubleSignPunishTx = api.turboEngine.IsDoubleSignPunishTransaction(msg.From, tx, header)
-						isProposalTxs = api.turboEngine.IsSysTransaction(msg.From, tx, header)
 
 					}
 					if isDoubleSignPunishTx {
 						res, err = api.traceTurboApplyDoubleSignPunishTx(ctx, msg.From, tx, txctx, blockCtx, task.statedb, config)
-					} else if isProposalTxs {
-						res, err = api.traceProposalTx(ctx, msg.From, tx, txctx, blockCtx, task.statedb, config)
 					} else {
 						res, err = api.traceTx(ctx, tx, msg, txctx, blockCtx, task.statedb, config)
 					}
@@ -650,12 +645,10 @@ func (api *API) traceBlock(ctx context.Context, block *types.Block, config *Trac
 	for i, tx := range txs {
 		var (
 			isDoubleSignPunishTx bool
-			isProposalTxs        bool
 		)
 		if api.isTurboEngine {
 			sender, _ := types.Sender(signer, tx)
 			isDoubleSignPunishTx = api.turboEngine.IsDoubleSignPunishTransaction(sender, tx, block.Header())
-			isProposalTxs = api.turboEngine.IsSysTransaction(sender, tx, block.Header())
 		}
 		// Generate the next state snapshot fast without tracing
 		msg, _ := core.TransactionToMessage(tx, signer, block.BaseFee())
@@ -669,8 +662,6 @@ func (api *API) traceBlock(ctx context.Context, block *types.Block, config *Trac
 		var err error
 		if isDoubleSignPunishTx {
 			res, err = api.traceTurboApplyDoubleSignPunishTx(ctx, msg.From, txs[i], txctx, blockCtx, statedb, config)
-		} else if isProposalTxs {
-			res, err = api.traceProposalTx(ctx, msg.From, txs[i], txctx, blockCtx, statedb, config)
 		} else {
 			res, err = api.traceTx(ctx, txs[i], msg, txctx, blockCtx, statedb, config)
 		}
@@ -723,9 +714,6 @@ func (api *API) traceBlockParallel(ctx context.Context, block *types.Block, stat
 				if task.isDoubleSignPunishTx {
 					tx := txs[task.index]
 					res, err = api.traceTurboApplyDoubleSignPunishTx(ctx, msg.From, tx, txctx, blockCtx, task.statedb, config)
-				} else if task.isProposalTxs {
-					tx := txs[task.index]
-					res, err = api.traceProposalTx(ctx, msg.From, tx, txctx, blockCtx, task.statedb, config)
 				} else {
 					tx := txs[task.index]
 					res, err = api.traceTx(ctx, tx, msg, txctx, blockCtx, task.statedb, config)
@@ -746,15 +734,13 @@ txloop:
 	for i, tx := range txs {
 		var (
 			isDoubleSignPunishTx bool
-			isProposalTxs        bool
 		)
 		if api.isTurboEngine {
 			sender, _ := types.Sender(signer, tx)
 			isDoubleSignPunishTx = api.turboEngine.IsDoubleSignPunishTransaction(sender, tx, block.Header())
-			isProposalTxs = api.turboEngine.IsSysTransaction(sender, tx, block.Header())
 		}
 		// Send the trace task over for execution
-		task := &txTraceTask{statedb: statedb.Copy(), index: i, isDoubleSignPunishTx: isDoubleSignPunishTx, isProposalTxs: isProposalTxs}
+		task := &txTraceTask{statedb: statedb.Copy(), index: i, isDoubleSignPunishTx: isDoubleSignPunishTx}
 		select {
 		case <-ctx.Done():
 			failed = ctx.Err()
@@ -768,13 +754,6 @@ txloop:
 		vmenv := vm.NewEVM(blockCtx, core.NewEVMTxContext(msg), statedb, api.backend.ChainConfig(), vm.Config{})
 		if isDoubleSignPunishTx {
 			if _, _, err := api.turboEngine.ApplyDoubleSignPunishTx(vmenv, msg.From, tx); err != nil {
-				failed = err
-				break
-			}
-			continue
-		}
-		if isProposalTxs {
-			if _, _, err := api.turboEngine.ApplyProposalTx(vmenv, statedb, i, msg.From, tx); err != nil {
 				failed = err
 				break
 			}
@@ -899,16 +878,12 @@ func (api *API) standardTraceBlockToFile(ctx context.Context, block *types.Block
 		}
 		var (
 			isDoubleSignPunishTx bool
-			isProposalTxs        bool
 		)
 		if api.isTurboEngine {
 			isDoubleSignPunishTx = api.turboEngine.IsDoubleSignPunishTransaction(msg.From, tx, block.Header())
-			isProposalTxs = api.turboEngine.IsSysTransaction(msg.From, tx, block.Header())
 		}
 		if isDoubleSignPunishTx {
 			_, _, err = api.turboEngine.ApplyDoubleSignPunishTx(vmenv, msg.From, tx)
-		} else if isProposalTxs {
-			_, _, err = api.turboEngine.ApplyProposalTx(vmenv, statedb, i, msg.From, tx)
 		} else {
 			_, err = core.ApplyMessage(vmenv, msg, new(core.GasPool).AddGas(msg.GasLimit))
 		}
@@ -988,9 +963,6 @@ func (api *API) TraceTransaction(ctx context.Context, hash common.Hash, config *
 		tx := block.Transactions()[int(index)]
 		if ok := api.turboEngine.IsDoubleSignPunishTransaction(msg.From, tx, block.Header()); ok {
 			return api.traceTurboApplyDoubleSignPunishTx(ctx, msg.From, tx, txctx, vmctx, statedb, config)
-		}
-		if ok := api.turboEngine.IsSysTransaction(msg.From, tx, block.Header()); ok {
-			return api.traceProposalTx(ctx, msg.From, tx, txctx, vmctx, statedb, config)
 		}
 	}
 	return api.traceTx(ctx, tx, msg, txctx, vmctx, statedb, config)
@@ -1230,14 +1202,6 @@ func (api *API) traceProposalTx(ctx context.Context, sender common.Address, tx *
 			GetResult: logger.GetResult,
 			Stop:      logger.Stop,
 		}
-	}
-	// Run the transaction with tracing enabled.
-	vmctx.AccessFilter = nil
-	vmenvWithoutTxCtx := vm.NewEVM(vmctx, vm.TxContext{}, statedb, api.backend.ChainConfig(), vm.Config{EnablePreimageRecording: true, Tracer: tracer.Hooks, NoBaseFee: true})
-
-	_, _, err = api.turboEngine.ApplyProposalTx(vmenvWithoutTxCtx, statedb, txctx.TxIndex, sender, tx)
-	if err != nil {
-		return nil, fmt.Errorf("tracing failed: %w", err)
 	}
 	return tracer.GetResult()
 }

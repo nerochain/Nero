@@ -503,7 +503,7 @@ func (ethash *Ethash) Prepare(chain consensus.ChainHeaderReader, header *types.H
 
 // Finalize implements consensus.Engine, accumulating the block and uncle rewards.
 func (ethash *Ethash) Finalize(chain consensus.ChainHeaderReader, header *types.Header, state *state.StateDB, body *types.Body,
-	receipts *[]*types.Receipt, punishTxs []*types.Transaction, proposalTxs []*types.Transaction) error {
+	receipts *[]*types.Receipt, punishTxs []*types.Transaction) error {
 	// Accumulate any block and uncle rewards
 	accumulateRewards(chain.Config(), state, header, body.Uncles)
 	return nil
@@ -516,7 +516,7 @@ func (ethash *Ethash) FinalizeAndAssemble(chain consensus.ChainHeaderReader, hea
 		return nil, nil, errors.New("ethash does not support withdrawals")
 	}
 	// Finalize block
-	ethash.Finalize(chain, header, state, body, nil, nil, nil)
+	ethash.Finalize(chain, header, state, body, nil, nil)
 
 	// Assign the final state root to header.
 	header.Root = state.IntermediateRoot(chain.Config().IsEIP158(header.Number))

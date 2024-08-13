@@ -96,7 +96,6 @@ func (p *StateProcessor) Process(block *types.Block, statedb *state.StateDB, cfg
 	// Iterate over and process the individual transactions
 	commonTxs := make([]*types.Transaction, 0, len(block.Transactions()))
 	punishTxs := make([]*types.Transaction, 0)
-	proposalTxs := make([]*types.Transaction, 0)
 	for i, tx := range block.Transactions() {
 		if IsPreserved(tx.To()) {
 			return nil, nil, 0, fmt.Errorf("send tx to system preserved address(%v): tx %d [%v]", *tx.To(), i, tx.Hash())
@@ -112,10 +111,6 @@ func (p *StateProcessor) Process(block *types.Block, statedb *state.StateDB, cfg
 
 			if ok := turboEngine.IsDoubleSignPunishTransaction(sender, tx, header); ok {
 				punishTxs = append(punishTxs, tx)
-				continue
-			}
-			if ok := turboEngine.IsSysTransaction(sender, tx, header); ok {
-				proposalTxs = append(proposalTxs, tx)
 				continue
 			}
 			if err = turboEngine.FilterTx(sender, tx, header, statedb); err != nil {
@@ -142,7 +137,7 @@ func (p *StateProcessor) Process(block *types.Block, statedb *state.StateDB, cfg
 		return nil, nil, 0, errors.New("withdrawals before shanghai")
 	}
 	// Finalize the block, applying any consensus engine specific extras (e.g. block rewards)
-	if err := p.engine.Finalize(p.bc, header, statedb, &types.Body{Transactions: commonTxs}, &receipts, punishTxs, proposalTxs); err != nil {
+	if err := p.engine.Finalize(p.bc, header, statedb, &types.Body{Transactions: commonTxs}, &receipts, punishTxs); err != nil {
 		return nil, nil, 0, err
 	}
 

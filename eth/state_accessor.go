@@ -274,13 +274,6 @@ func (eth *Ethereum) stateAtTransaction(ctx context.Context, block *types.Block,
 				}
 				continue
 			}
-			if ok := eth.turboEngine.IsSysTransaction(sender, tx, header); ok {
-				context.AccessFilter = nil
-				if _, _, err := eth.turboEngine.ApplyProposalTx(vmenv, statedb, idx, sender, tx); err != nil {
-					return nil, vm.BlockContext{}, nil, nil, fmt.Errorf("transaction %#x failed: %v", tx.Hash(), err)
-				}
-				continue
-			}
 		}
 
 		if _, err := core.ApplyMessage(vmenv, msg, new(core.GasPool).AddGas(tx.Gas())); err != nil {

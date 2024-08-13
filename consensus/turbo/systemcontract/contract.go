@@ -9,7 +9,6 @@ import (
 
 	"github.com/ethereum/go-ethereum/accounts/abi"
 	"github.com/ethereum/go-ethereum/common"
-	"github.com/ethereum/go-ethereum/consensus"
 	"github.com/ethereum/go-ethereum/contracts"
 	"github.com/ethereum/go-ethereum/contracts/system"
 	"github.com/ethereum/go-ethereum/core/vm"
@@ -134,78 +133,6 @@ func IsDoubleSignPunished(ctx *contracts.CallContext, punishHash common.Hash) (b
 		return true, errors.New("IsDoubleSignPunished: invalid result format, punishHash" + punishHash.Hex())
 	}
 	return punished, nil
-}
-
-// GetBlacksFrom return the access tx-from list
-func GetBlacksFrom(ctx *contracts.CallContext) ([]common.Address, error) {
-	return []common.Address{}, nil
-}
-
-// GetBlacksTo return access tx-to list
-func GetBlacksTo(ctx *contracts.CallContext) ([]common.Address, error) {
-	return []common.Address{}, nil
-}
-
-// GetRuleByIndex return event log rules
-func GetRuleByIndex(ctx *contracts.CallContext, idx uint32) (common.Hash, int, common.AddressCheckType, error) {
-	return common.Hash{}, 0, common.CheckNone, nil
-}
-
-// GetRulesLen return event log rules length
-func GetRulesLen(ctx *contracts.CallContext) (uint32, error) {
-	return 0, nil
-}
-
-// IsDeveloperVerificationEnabled returns developer verification flags (devVerifyEnabled,checkInnerCreation).
-// Since the state variables are as follows:
-//
-//	   bool public initialized;
-//	   bool public devVerifyEnabled;
-//		  bool public checkInnerCreation;
-//	   address public admin;
-//	   address public pendingAdmin;
-//	   mapping(address => bool) private devs;
-//
-// according to [Layout of State Variables in Storage](https://docs.soliditylang.org/en/v0.8.4/internals/layout_in_storage.html),
-// and after optimizer enabled, the `initialized`, `devVerifyEnabled`, `checkInnerCreation` and `admin` will be packed, and stores at slot 0,
-// `pendingAdmin` stores at slot 1, and the position for `devs` is 2.
-func IsDeveloperVerificationEnabled(state consensus.StateReader) (devVerifyEnabled, checkInnerCreation bool) {
-	return false, false
-}
-
-// LastBlackUpdatedNumber returns LastBlackUpdatedNumber of address list
-func LastBlackUpdatedNumber(state consensus.StateReader) uint64 {
-	return 0
-}
-
-// LastRulesUpdatedNumber returns LastRulesUpdatedNumber of address list
-func LastRulesUpdatedNumber(state consensus.StateReader) uint64 {
-	return 0
-}
-
-// GetPassedProposalCount returns passed proposal count
-func GetPassedProposalCount(ctx *contracts.CallContext) (uint32, error) {
-	return 0, nil
-}
-
-// GetPassedProposalByIndex returns passed proposal by index
-func GetPassedProposalByIndex(ctx *contracts.CallContext, idx uint32) (*Proposal, error) {
-	return nil, nil
-}
-
-// FinishProposalById finish passed proposal by id
-func FinishProposalById(ctx *contracts.CallContext, id *big.Int) error {
-	return nil
-}
-
-// ExecuteProposal executes proposal
-func ExecuteProposal(ctx *contracts.CallContext, prop *Proposal) error {
-	return nil
-}
-
-// ExecuteProposalWithGivenEVM executes proposal by given evm
-func ExecuteProposalWithGivenEVM(evm *vm.EVM, prop *Proposal, gas uint64) (ret []byte, err error) {
-	return nil, nil
 }
 
 // contractRead perform contract read
