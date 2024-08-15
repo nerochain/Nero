@@ -13,6 +13,8 @@ import (
 	"github.com/holiman/uint256"
 )
 
+const metricsKey = "metric"
+
 type discardHandler struct{}
 
 // DiscardHandler returns a no-op handler
@@ -105,6 +107,48 @@ func (t *TerminalHandler) ResetFieldPadding() {
 	t.mu.Lock()
 	t.fieldPadding = make(map[string]int)
 	t.mu.Unlock()
+}
+
+type TerminalMetricsHandler struct {
+	log     slog.Handler
+	metrics slog.Handler
+}
+
+func NewTerminalMetricsHandler(log, metrics io.Writer, useColor bool) *TerminalMetricsHandler {
+	h := &TerminalMetricsHandler{log: NewTerminalHandlerWithLevel(log, levelMaxVerbosity, useColor)}
+	if metrics != nil {
+		h.metrics = NewTerminalHandlerWithLevel(metrics, levelMaxVerbosity, useColor)
+	}
+	return h
+}
+
+func (h *TerminalMetricsHandler) Handle(_ context.Context, r slog.Record) error {
+	if r.Message != metricsKey {
+		return h.log.Handle(context.Background(), r)
+	} else if h.metrics != nil {
+		return h.metrics.Handle(context.Background(), r)
+	}
+	return nil
+}
+
+func (h *TerminalMetricsHandler) Enabled(_ context.Context, level slog.Level) bool {
+	return h.log.Enabled(context.Background(), level)
+}
+
+func (h *TerminalMetricsHandler) WithGroup(name string) slog.Handler {
+	panic("not implemented")
+}
+
+func (h *TerminalMetricsHandler) WithAttrs(attrs []slog.Attr) slog.Handler {
+	return &TerminalMetricsHandler{
+		log:     h.log.WithAttrs(attrs),
+		metrics: h.metrics,
+	}
+}
+
+// ResetFieldPadding zeroes the field-padding for all attribute pairs.
+func (t *TerminalMetricsHandler) ResetFieldPadding() {
+	t.log.(*TerminalHandler).ResetFieldPadding()
 }
 
 type leveler struct{ minLevel slog.Level }

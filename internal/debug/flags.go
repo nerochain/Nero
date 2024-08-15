@@ -72,6 +72,12 @@ var (
 		Usage:    "Log format to use (json|logfmt|terminal)",
 		Category: flags.LoggingCategory,
 	}
+	logMetricFlag = &cli.BoolFlag{
+		Name:     "log.metric",
+		Usage:    "Write metric info to log files",
+		Hidden:   true,
+		Category: flags.LoggingCategory,
+	}
 	logFileFlag = &cli.StringFlag{
 		Name:     "log.file",
 		Usage:    "Write logs to a file",
@@ -153,6 +159,7 @@ var Flags = []cli.Flag{
 	vmoduleFlag,
 	logjsonFlag,
 	logFormatFlag,
+	logMetricFlag,
 	logFileFlag,
 	logRotateFlag,
 	logMaxSizeMBsFlag,
@@ -169,8 +176,8 @@ var Flags = []cli.Flag{
 }
 
 var (
-	glogger       *log.GlogHandler
-	logOutputFile io.WriteCloser
+	glogger                            *log.GlogHandler
+	logOutputFile, logMetricOutputFile io.WriteCloser
 )
 
 func init() {
@@ -228,6 +235,16 @@ func Setup(ctx *cli.Context) error {
 		output = terminalOutput
 	}
 
+	if len(logFile) > 0 && ctx.Bool(logMetricFlag.Name) {
+		logMetricOutputFile = &lumberjack.Logger{
+			Filename:   filepath.Dir(logFile) + "/metric.log",
+			MaxSize:    ctx.Int(logMaxSizeMBsFlag.Name),
+			MaxBackups: ctx.Int(logMaxBackupsFlag.Name),
+			MaxAge:     ctx.Int(logMaxAgeFlag.Name),
+			Compress:   ctx.Bool(logCompressFlag.Name),
+		}
+	}
+
 	switch {
 	case ctx.Bool(logjsonFlag.Name):
 		// Retain backwards compatibility with `--log.json` flag if `--log.format` not set
@@ -247,7 +264,7 @@ func Setup(ctx *cli.Context) error {
 				output = terminalOutput
 			}
 		}
-		handler = log.NewTerminalHandler(output, useColor)
+		handler = log.NewTerminalMetricsHandler(output, logMetricOutputFile, useColor)
 	default:
 		// Unknown log format specified
 		return fmt.Errorf("unknown log format: %v", ctx.String(logFormatFlag.Name))
