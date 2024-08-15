@@ -715,7 +715,7 @@ func (c *Turbo) tryDistributeBlockFee(chain consensus.ChainHeaderReader, header 
 	}
 
 	// Miner will send tx to deposit block fees to contract, add to his balance first.
-	state.AddBalance(header.Coinbase, fee, tracing.BalanceIncreaseRewardTransactionFee)
+	state.AddBalance(system.EngineCaller, fee, tracing.BalanceIncreaseRewardTransactionFee)
 	// reset fee
 	state.SetBalance(consensus.FeeRecoder, common.U2560, tracing.BalanceClearFeeRecored)
 
