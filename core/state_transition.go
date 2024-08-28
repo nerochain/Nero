@@ -214,7 +214,6 @@ type StateTransition struct {
 	initialGas   uint64
 	state        vm.StateDB
 	evm          *vm.EVM
-	isMeta       bool
 	feeAddress   common.Address
 	feePercent   uint64 //meta transaction fee percent
 	realPayload  []byte //the real transaction fee percent
@@ -279,25 +278,6 @@ func (st *StateTransition) buyGas() error {
 	st.initialGas = st.msg.GasLimit
 	mgvalU256, _ := uint256.FromBig(mgval)
 	st.state.SubBalance(st.msg.From, mgvalU256, tracing.BalanceDecreaseGasBuy)
-	return nil
-}
-
-func (st *StateTransition) buyGasMeta() error {
-	mgval := new(uint256.Int).Mul(uint256.NewInt(st.msg.GasLimit), uint256.MustFromBig(st.msg.GasPrice))
-	mgFeeAddrVal := new(uint256.Int).Div(new(uint256.Int).Mul(mgval, uint256.NewInt(st.feePercent)), types.Uint256_10000)                           //value deduct from fee address
-	mgSelfVal := new(uint256.Int).Div(new(uint256.Int).Mul(mgval, uint256.NewInt(types.Uint256_10000.Uint64()-st.feePercent)), types.Uint256_10000) //value deduct from sender address
-
-	if st.state.GetBalance(st.feeAddress).Cmp(mgFeeAddrVal) < 0 || st.state.GetBalance(st.msg.From).Cmp(mgSelfVal) < 0 {
-		return ErrInsufficientFunds
-	}
-	if err := st.gp.SubGas(st.msg.GasLimit); err != nil {
-		return err
-	}
-	st.gasRemaining += st.msg.GasLimit
-
-	st.initialGas = st.msg.GasLimit
-	st.state.SubBalance(st.feeAddress, mgFeeAddrVal, tracing.BalanceDecreaseGasBuy)
-	st.state.SubBalance(st.msg.From, mgSelfVal, tracing.BalanceDecreaseGasBuy)
 	return nil
 }
 
@@ -381,35 +361,7 @@ func (st *StateTransition) preCheck() error {
 			}
 		}
 	}
-	if err := st.metaTransactionCheck(); err != nil {
-		return err
-	}
-	if st.isMeta {
-		return st.buyGasMeta()
-	}
 	return st.buyGas()
-}
-
-// check if tx is meta tx
-func (st *StateTransition) metaTransactionCheck() error {
-	if types.IsMetaTransaction(st.msg.Data) {
-		metaData, err := types.DecodeMetaData(st.msg.Data, st.evm.Context.BlockNumber)
-		if err != nil {
-			return err
-		}
-		chainID := st.evm.ChainConfig().ChainID
-		addr, err := metaData.ParseMetaData(st.msg.Nonce, st.msg.GasPrice, st.msg.GasLimit, st.msg.To, st.msg.Value, metaData.Payload, st.msg.From, chainID)
-		if err != nil {
-			return err
-		}
-		st.isMeta = true
-		st.feeAddress = addr
-		st.realPayload = st.msg.Data
-		st.msg.Data = metaData.Payload
-		st.feePercent = metaData.FeePercent
-		return nil
-	}
-	return nil
 }
 
 // TransitionDb will transition the state by applying the current message and
@@ -555,18 +507,7 @@ func (st *StateTransition) refundGas(refundQuotient uint64) uint64 {
 	remaining := uint256.NewInt(st.gasRemaining)
 	remaining.Mul(remaining, uint256.MustFromBig(st.msg.GasPrice))
 
-	if st.isMeta {
-
-		mgFeeAddrVal := new(uint256.Int).Div(new(uint256.Int).Mul(remaining, uint256.NewInt(st.feePercent)), types.Uint256_10000)
-		mgSelfVal := new(uint256.Int).Div(new(uint256.Int).Mul(remaining, uint256.NewInt(types.Uint256_10000.Uint64()-st.feePercent)), types.Uint256_10000)
-		st.state.AddBalance(st.feeAddress, mgFeeAddrVal, tracing.BalanceIncreaseGasReturn)
-		st.state.AddBalance(st.msg.From, mgSelfVal, tracing.BalanceIncreaseGasReturn)
-		st.msg.Data = st.realPayload
-	} else {
-		st.state.AddBalance(st.msg.From, remaining, tracing.BalanceIncreaseGasReturn)
-
-	}
-
+	st.state.AddBalance(st.msg.From, remaining, tracing.BalanceIncreaseGasReturn)
 	if st.evm.Config.Tracer != nil && st.evm.Config.Tracer.OnGasChange != nil && st.gasRemaining > 0 {
 		st.evm.Config.Tracer.OnGasChange(st.gasRemaining, 0, tracing.GasChangeTxLeftOverReturned)
 	}

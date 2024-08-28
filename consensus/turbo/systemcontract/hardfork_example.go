@@ -17,8 +17,6 @@ var (
 func ExampleHardFork() []IUpgradeAction {
 	return []IUpgradeAction{
 		&ContractV2{},
-		&AddressList{},
-		&OnChainDao{},
 	}
 }
 
@@ -35,28 +33,4 @@ func (s *ContractV2) DoUpdate(state *state.StateDB, header *types.Header, chainC
 	state.SetCode(system.StakingContract, contractCode)
 	log.Debug("Write code to system contract account", "addr", system.StakingContract, "code", system.StakingV1Code)
 	return
-}
-
-// AddressList is used to manage tx by address
-type AddressList struct {
-}
-
-func (s *AddressList) GetName() string {
-	return "AddressList"
-}
-
-func (s *AddressList) DoUpdate(state *state.StateDB, header *types.Header, chainContext core.ChainContext, config *params.ChainConfig) (err error) {
-	return nil
-}
-
-// OnChainDao is used to manage proposal
-type OnChainDao struct {
-}
-
-func (s *OnChainDao) GetName() string {
-	return "OnChainDao"
-}
-
-func (s *OnChainDao) DoUpdate(state *state.StateDB, header *types.Header, chainContext core.ChainContext, config *params.ChainConfig) (err error) {
-	return nil
 }
