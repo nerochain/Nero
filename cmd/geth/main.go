@@ -151,6 +151,7 @@ var (
 		configFileFlag,
 		utils.LogDebugFlag,
 		utils.LogBacktraceAtFlag,
+		utils.TraceActionFlag,
 		utils.BeaconApiFlag,
 		utils.BeaconApiHeaderFlag,
 		utils.BeaconThresholdFlag,

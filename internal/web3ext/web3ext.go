@@ -438,6 +438,24 @@ web3._extend({
 			inputFormatter: [null, null, null]
 		}),
 		new web3._extend.Method({
+			name: 'traceActionByTxHash',
+			call: 'debug_traceActionByTxHash',
+			params: 2,
+			inputFormatter: [null, null]
+		}),
+		new web3._extend.Method({
+			name: 'traceActionByBlockNumber',
+			call: 'debug_traceActionByBlockNumber',
+			params: 2,
+			inputFormatter: [null, null]
+		}),
+		new web3._extend.Method({
+			name: 'traceActionByBlockHash',
+			call: 'debug_traceActionByBlockHash',
+			params: 1,
+			inputFormatter: [null]
+		}),
+		new web3._extend.Method({
 			name: 'preimage',
 			call: 'debug_preimage',
 			params: 1,
