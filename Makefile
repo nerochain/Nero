@@ -14,6 +14,10 @@ geth:
 	@echo "Done building."
 	@echo "Run \"$(GOBIN)/geth\" to launch geth."
 
+#? cross build ubuntu version
+ubuntu:
+	./cross-ubuntu.sh
+
 #? all: Build all packages and executables.
 all:
 	$(GORUN) build/ci.go install
