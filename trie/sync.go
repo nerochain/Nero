@@ -272,13 +272,14 @@ type Sync struct {
 // NewSync creates a new trie data download scheduler.
 func NewSync(root common.Hash, database ethdb.KeyValueReader, callback LeafCallback, scheme string) *Sync {
 	ts := &Sync{
-		scheme:   scheme,
-		database: database,
-		membatch: newSyncMemBatch(scheme),
-		nodeReqs: make(map[string]*nodeRequest),
-		codeReqs: make(map[common.Hash]*codeRequest),
-		queue:    prque.New[int64, any](nil), // Ugh, can contain both string and hash, whyyy
-		fetches:  make(map[int]int),
+		scheme:        scheme,
+		database:      database,
+		membatch:      newSyncMemBatch(scheme),
+		nodeReqs:      make(map[string]*nodeRequest),
+		nodeHashPaths: make(map[common.Hash]string),
+		codeReqs:      make(map[common.Hash]*codeRequest),
+		queue:         prque.New[int64, any](nil), // Ugh, can contain both string and hash, whyyy
+		fetches:       make(map[int]int),
 	}
 	ts.AddSubTrie(root, nil, common.Hash{}, nil, callback)
 	return ts
@@ -684,6 +685,7 @@ func (s *Sync) commitNodeRequest(req *nodeRequest) error {
 
 	// Removed the completed node request
 	delete(s.nodeReqs, string(req.path))
+	delete(s.nodeHashPaths, req.hash)
 	s.fetches[len(req.path)]--
 
 	// Check parent for completion
