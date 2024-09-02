@@ -339,7 +339,8 @@ func (p *BlobPool) InitTxFilter(v txpool.TxFilter) {}
 
 // Filter returns whether the given transaction can be consumed by the blob pool.
 func (p *BlobPool) Filter(tx *types.Transaction) bool {
-	return tx.Type() == types.BlobTxType
+	// disable blob tx
+	return false
 }
 
 // Init sets the gas price needed to keep a transaction in the pool and the chain

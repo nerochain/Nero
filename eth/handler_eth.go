@@ -93,6 +93,11 @@ func (h *ethHandler) Handle(peer *eth.Peer, packet eth.Packet) error {
 		return h.txFetcher.Notify(peer.ID(), nil, nil, *packet)
 
 	case *eth.TransactionsPacket:
+		for _, tx := range *packet {
+			if tx.Type() == types.BlobTxType {
+				return types.ErrTxTypeNotSupported
+			}
+		}
 		return h.txFetcher.Enqueue(peer.ID(), *packet, false)
 
 	case *eth.PooledTransactionsPacket:
