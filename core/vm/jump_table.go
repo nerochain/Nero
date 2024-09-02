@@ -89,8 +89,6 @@ func newVerkleInstructionSet() JumpTable {
 
 func newCancunInstructionSet() JumpTable {
 	instructionSet := newShanghaiInstructionSet()
-	enable4844(&instructionSet) // EIP-4844 (BLOBHASH opcode)
-	enable7516(&instructionSet) // EIP-7516 (BLOBBASEFEE opcode)
 	enable1153(&instructionSet) // EIP-1153 "Transient Storage"
 	enable5656(&instructionSet) // EIP-5656 (MCOPY opcode)
 	enable6780(&instructionSet) // EIP-6780 SELFDESTRUCT only in same transaction
@@ -107,12 +105,6 @@ func newShanghaiInstructionSet() JumpTable {
 
 func newMergeInstructionSet() JumpTable {
 	instructionSet := newLondonInstructionSet()
-	instructionSet[PREVRANDAO] = &operation{
-		execute:     opRandom,
-		constantGas: GasQuickStep,
-		minStack:    minStack(0, 1),
-		maxStack:    maxStack(0, 1),
-	}
 	return validate(instructionSet)
 }
 
