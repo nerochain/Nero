@@ -273,6 +273,8 @@ func TestGenesisUnmarshal(t *testing.T) {
 
 	assert.Equal(t, genesis.configOrDefault(common.Hash{}).Turbo,
 		&params.TurboConfig{Period: 3, Epoch: 200, AttestationDelay: 2})
+	assert.True(t, genesis.Config.IsShanghai(common.Big0, 0))
+	assert.True(t, genesis.Config.IsCancun(common.Big0, 0))
 
 	stakingInit := genesis.Alloc[system.StakingContract].Init
 	assert.Equal(t, stakingInit, &types.Init{
