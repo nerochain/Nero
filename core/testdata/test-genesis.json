@@ -12,6 +12,8 @@
     "istanbulBlock": 0,
     "berlinBlock": 0,
     "londonBlock": 0,
+    "shanghaiTime": 0,
+    "cancunTime": 0,
     "turbo": {
       "period": 3,
       "epoch": 200,

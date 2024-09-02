@@ -108,6 +108,9 @@ func (p *StateProcessor) Process(block *types.Block, statedb *state.StateDB, cfg
 		if IsPreserved(tx.To()) {
 			return nil, nil, nil, 0, fmt.Errorf("send tx to system preserved address(%v): tx %d [%v]", *tx.To(), i, tx.Hash())
 		}
+		if tx.Type() == types.BlobTxType {
+			return nil, nil, nil, 0, fmt.Errorf("block has unsupported tx type of blob, tx %d [%v]", i, tx.Hash())
+		}
 		if isTurboEngine {
 			sender, err := types.Sender(signer, tx)
 			if err != nil {
