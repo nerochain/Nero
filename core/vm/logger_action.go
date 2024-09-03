@@ -49,7 +49,9 @@ func (t *ActionLogger) OnEnter(depth int, typ byte, from common.Address, to comm
 		}
 	} else {
 		// inherit trace address from parent
-		parent := t.callstack[depth]
+		// length of callstack is equal to call dep
+		dep := len(t.callstack) - 1
+		parent := t.callstack[dep]
 		traceAddr := make([]uint64, len(parent.TraceAddress), len(parent.TraceAddress)+1)
 		copy(traceAddr, parent.TraceAddress)
 
@@ -62,7 +64,7 @@ func (t *ActionLogger) OnEnter(depth int, typ byte, from common.Address, to comm
 				From:         from,
 				To:           to,
 				Value:        value,
-				Depth:        uint64(depth),
+				Depth:        uint64(dep),
 				Gas:          gas,
 				Input:        input,
 				TraceAddress: traceAddr,
