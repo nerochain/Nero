@@ -425,6 +425,8 @@ func (g *Genesis) configOrDefault(ghash common.Hash) *params.ChainConfig {
 		return g.Config
 	case ghash == params.MainnetGenesisHash:
 		return params.MainnetChainConfig
+	case ghash == params.TestnetGenesisHash:
+		return params.TestnetChainConfig
 	case ghash == params.HoleskyGenesisHash:
 		return params.HoleskyChainConfig
 	case ghash == params.SepoliaGenesisHash:
@@ -594,20 +596,17 @@ func DefaultGenesisBlock() *Genesis {
 func DefaultTestnetGenesisBlock() *Genesis {
 	return &Genesis{
 		Config:     params.TestnetChainConfig,
-		Timestamp:  0x6579c720,
+		Timestamp:  0x66ecbb00,
 		ExtraData:  hexutil.MustDecode("0x00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000"),
-		GasLimit:   0x05f5e100,
+		GasLimit:   0x2625a00,
 		Difficulty: big.NewInt(1),
 		Alloc:      decodePrealloc(testnetAllocData),
-		Mixhash:    common.Hash{},
 		Validators: []types.ValidatorInfo{
-			types.MakeValidator("0x0000000000000000000000000000000000000001", "0xffffffffffffffffffffffffffffffffffffffff", "0", "1000000", false),
-			types.MakeValidator("0x0000000000000000000000000000000000000002", "0xffffffffffffffffffffffffffffffffffffffff", "0", "1000000", true),
-			types.MakeValidator("0x0000000000000000000000000000000000000003", "0xffffffffffffffffffffffffffffffffffffffff", "40", "1000000", true),
-			types.MakeValidator("0x0000000000000000000000000000000000000004", "0xffffffffffffffffffffffffffffffffffffffff", "60", "1000000", true),
-			types.MakeValidator("0x0000000000000000000000000000000000000005", "0xffffffffffffffffffffffffffffffffffffffff", "80", "1000000", true),
-			types.MakeValidator("0x0000000000000000000000000000000000000006", "0xffffffffffffffffffffffffffffffffffffffff", "100", "1000000", true),
-			types.MakeValidator("0x0000000000000000000000000000000000000007", "0xffffffffffffffffffffffffffffffffffffffff", "100", "1000000", false),
+			types.MakeValidator("0x87392e3774B9B152948b764e3F0CB2aEdDBa1968", "0x949A2FcBE4EA880495aee6Bdd722827A4f3cdb34", "20", "200000000000000000000000000", true),
+			types.MakeValidator("0xAd3dB0454B6c1Ce22A566782119463aC332eDA9B", "0x949A2FcBE4EA880495aee6Bdd722827A4f3cdb34", "20", "200000000000000000000000000", true),
+			types.MakeValidator("0xcbA00A3d882497A54e4d3a0a03b7FE1d2495F295", "0x949A2FcBE4EA880495aee6Bdd722827A4f3cdb34", "20", "200000000000000000000000000", true),
+			types.MakeValidator("0x8c248Fa3079A33cfCc93EF107b0C698f45B8182C", "0x949A2FcBE4EA880495aee6Bdd722827A4f3cdb34", "20", "200000000000000000000000000", true),
+			types.MakeValidator("0x161c6074FE164DD60a1C149b1eA0cC641fe91662", "0x949A2FcBE4EA880495aee6Bdd722827A4f3cdb34", "20", "200000000000000000000000000", true),
 		},
 	}
 }
