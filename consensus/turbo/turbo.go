@@ -218,11 +218,6 @@ func New(chainConfig *params.ChainConfig, db ethdb.Database) *Turbo {
 		conf.Epoch = epochLength
 	}
 
-	// set admin in system contracts of GravitationHardFork if it's provided for private/develop chain
-	if (conf.AdminDevnet != common.Address{}) {
-		systemcontract.AdminDevnet = conf.AdminDevnet
-	}
-
 	// Allocate the snapshot caches and create the engine
 	recents, _ := lru.NewARC(inmemorySnapshots)
 	signatures, _ := lru.NewARC(inmemorySignatures)
@@ -642,7 +637,6 @@ func (c *Turbo) FinalizeAndAssemble(chain consensus.ChainHeaderReader, header *t
 // * decrease missed blocks counter
 // * update rewards info
 // * punish double sign
-// * process proposal tx (after Gravitation hardfork)
 func (c *Turbo) prepareFinalize(chain consensus.ChainHeaderReader, header *types.Header,
 	state *state.StateDB, txs *[]*types.Transaction, receipts *[]*types.Receipt, punishTxs []*types.Transaction, mined bool) error {
 	// punish validator if low difficulty block found
@@ -942,7 +936,6 @@ func encodeSigHeader(w io.Writer, header *types.Header) {
 
 // PreHandle handles before tx execution in miner
 func (c *Turbo) PreHandle(chain consensus.ChainHeaderReader, header *types.Header, state *state.StateDB) error {
-	// TODO: prepare for handling all hardforks
 	for _, hardfork := range []systemcontract.Hardfork{} {
 		if hardfork.Number != nil && hardfork.Number.Cmp(header.Number) == 0 {
 			if err := systemcontract.ApplySystemContractUpgrade(hardfork.Name, state, header,

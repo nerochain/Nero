@@ -139,12 +139,12 @@ var (
 	}
 	MainnetFlag = &cli.BoolFlag{
 		Name:     "mainnet",
-		Usage:    "Ethereum mainnet",
+		Usage:    "Nero chain mainnet",
 		Category: flags.EthCategory,
 	}
 	TestnetFlag = &cli.BoolFlag{
 		Name:  "testnet",
-		Usage: "Testnet network: pre-configured proof-of-authority shortlived test network.",
+		Usage: "Testnet network: pre-configured nero chain test network.",
 	}
 	// Dev mode
 	DeveloperFlag = &cli.BoolFlag{

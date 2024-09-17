@@ -10,10 +10,6 @@ import (
 	"github.com/ethereum/go-ethereum/params"
 )
 
-var (
-	AdminDevnet common.Address
-)
-
 func ExampleHardFork() []IUpgradeAction {
 	return []IUpgradeAction{
 		&ContractV2{},

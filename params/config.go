@@ -62,10 +62,9 @@ var (
 		CancunTime:                    newUint64(1710338135),
 		Ethash:                        new(EthashConfig),
 		Turbo: &TurboConfig{
-			Period:                3,
-			Epoch:                 200,
-			AttestationDelay:      2,
-			EnableDevVerification: true,
+			Period:           3,
+			Epoch:            200,
+			AttestationDelay: 2,
 		},
 	}
 	// TestnetChainConfig contains the chain parameters to run a node on the test network.
@@ -457,11 +456,7 @@ type TurboConfig struct {
 
 	// AttestationDelay is the delay number for a validator to provide an attestation.
 	// That is: only attest to a block which height is ≤ `currentHead - AttestationDelay`
-	AttestationDelay uint64 `json:"attestationDelay"`
-
-	Rule                  uint64         `json:"rule"`                  // Version of Turbo, which differ in behavious, 0 is the lastest default one
-	EnableDevVerification bool           `json:"enableDevVerification"` // Enable developer address verification
-	AdminDevnet           common.Address `json:"adminDevnet,omitempty"` // admin address in system contracts of GravitationHardFork for a private chain, ONLY used by develop or private chain.
+	AttestationDelay uint64 `json:"attestationDelay,omitempty"`
 }
 
 // String implements the stringer interface, returning the consensus engine details.
