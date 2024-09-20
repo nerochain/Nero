@@ -19,10 +19,11 @@ package cons
 import (
 	"errors"
 	"fmt"
+	"math/big"
+
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/p2p"
-	"math/big"
 )
 
 // TODO In case of DDoS attack, the corresponding peer will be disconnected automatically
