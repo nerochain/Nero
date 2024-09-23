@@ -67,7 +67,7 @@ type LockedAccount struct {
 	PeriodAmount *big.Int       `json:"periodAmount,omitempty"`
 }
 
-// ValidatorInfo represents the info of inital validators
+// ValidatorInfo represents the info of initial validators
 type ValidatorInfo struct {
 	Address          common.Address `json:"address"         gencodec:"required"`
 	Manager          common.Address `json:"manager"         gencodec:"required"`

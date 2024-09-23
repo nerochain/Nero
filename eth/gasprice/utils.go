@@ -7,7 +7,7 @@ import "sync"
 type CirculeQueue struct {
 	items []interface{}
 	cap   int //
-	n     int // lenght
+	n     int // length
 	i     int // start index
 	e     int // end index
 }

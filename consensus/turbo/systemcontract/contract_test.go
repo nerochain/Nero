@@ -284,7 +284,6 @@ func TestDistributeBlockFee(t *testing.T) {
 	valAmount := big.NewInt(fee.ToBig().Int64() / 5 * 4 / 2)
 	assert.Equal(t, valAmount, getValidatorFee(GenesisValidators[0]))
 	assert.Equal(t, valAmount, getValidatorFee(GenesisValidators[1]))
-
 }
 
 func TestLazyPunish(t *testing.T) {
@@ -301,7 +300,6 @@ func TestLazyPunish(t *testing.T) {
 	assert.NoError(t, LazyPunish(ctx, GenesisValidators[0]))
 
 	assert.Equal(t, 1, getPunishRecord(GenesisValidators[0]))
-
 }
 
 func TestDoubleSignPunish(t *testing.T) {
@@ -355,16 +353,6 @@ func TestIsDoubleSignPunished(t *testing.T) {
 	}
 }
 
-// Utils function to do system contracts update of hardforks
-func hardforksUpdate(ctx *contracts.CallContext) error {
-	for _, hardfork := range []string{} {
-		if err := ApplySystemContractUpgrade(hardfork, ctx.Statedb, ctx.Header, ctx.ChainContext, ctx.ChainConfig); err != nil {
-			return err
-		}
-	}
-	return nil
-}
-
 // Utils function to create call context
 func initCallContext() (*contracts.CallContext, error) {
 	file, err := os.Open("../../../core/testdata/test-genesis.json")
@@ -408,6 +396,8 @@ func readSystemContract(t *testing.T, ctx *contracts.CallContext, method string,
 
 func readContract(t *testing.T, ctx *contracts.CallContext, contract *common.Address, method string, args ...interface{}) interface{} {
 	abi, err := abi.JSON(strings.NewReader(testAbi))
+	assert.NoError(t, err)
+
 	// execute contract
 	data, err := abi.Pack(method, args...)
 	assert.NoError(t, err)
@@ -420,16 +410,6 @@ func readContract(t *testing.T, ctx *contracts.CallContext, contract *common.Add
 	assert.NoError(t, err)
 	assert.Equal(t, 1, len(ret), "invalid result length")
 	return ret[0]
-}
-
-func writeContract(t *testing.T, ctx *contracts.CallContext, from common.Address, contract *common.Address, method string, args ...interface{}) {
-	abi, err := abi.JSON(strings.NewReader(testAbi))
-	// execute contract
-	data, err := abi.Pack(method, args...)
-	assert.NoError(t, err)
-
-	_, err = contracts.CallContract(ctx, from, contract, data)
-	assert.NoError(t, err)
 }
 
 // MockChainContext implements ChainContext for unit test

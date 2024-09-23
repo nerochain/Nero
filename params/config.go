@@ -366,7 +366,7 @@ var (
 	TestRules = TestChainConfig.Rules(new(big.Int), false, 0)
 )
 
-var ContinousInturn = uint64(1)
+var ContinuousInturn = uint64(1)
 
 // NetworkNames are user friendly names to use in the chain spec banner.
 var NetworkNames = map[string]string{
@@ -855,7 +855,7 @@ func (c *ChainConfig) LatestFork(time uint64) forks.Fork {
 }
 
 func (c *ChainConfig) TurboContinuousInturn(blockNumber *big.Int) uint64 {
-	return ContinousInturn
+	return ContinuousInturn
 }
 
 // IsTurboCompatible checks whether consensus config of Turbo is compatible

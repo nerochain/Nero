@@ -155,14 +155,6 @@ func toWei(cube uint64) *big.Int {
 	return v.Mul(v, wei)
 }
 
-type ValidatorRegistered struct {
-	val            common.Address
-	manager        common.Address
-	commissionRate *big.Int
-	stakeGWei      *big.Int
-	st             *big.Int
-}
-
 type testcase struct {
 	epoch    uint64 // default: 2
 	chainLen int    // default: 2*epoch
@@ -352,7 +344,6 @@ func runTurboTest(t *testing.T, testID int, tc *testcase) {
 	signer := types.LatestSigner(&config)
 
 	blocks, _ := core.GenerateChain(&config, genesisBlock, engine, db, chainLen, func(idx int, gen *core.BlockGen) {
-
 		// j is not block number, but index which starts from 0.
 		// Cast the vote contained in this block
 		gen.SetCoinbase(accounts.address(tc.miners[idx]))

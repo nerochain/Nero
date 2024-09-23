@@ -208,8 +208,8 @@ func (s *Snapshot) inturn(number uint64, validator common.Address) bool {
 	for offset < len(validators) && validators[offset] != validator {
 		offset++
 	}
-	continousInturn := s.config.TurboContinuousInturn(big.NewInt(int64(number)))
-	return (number%(uint64(len(validators))*continousInturn))/continousInturn == uint64(offset)
+	continuousInturn := s.config.TurboContinuousInturn(big.NewInt(int64(number)))
+	return (number%(uint64(len(validators))*continuousInturn))/continuousInturn == uint64(offset)
 }
 
 func (s *Snapshot) IsAuthorized(addr common.Address) bool {

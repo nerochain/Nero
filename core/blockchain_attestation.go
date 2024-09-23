@@ -81,7 +81,7 @@ func (bc *BlockChain) HandleAttestation(a *types.Attestation) error {
 }
 
 // attestationHandleLoop process attestation trigger by NewHeadEvent
-func (bc *BlockChain) attestationHandleLoop() {
+func (bc *BlockChain) AttestationHandleLoop() {
 	defer bc.wg.Done()
 	chainHeadCh := make(chan ChainHeadEvent)
 	sub := bc.SubscribeChainHeadEvent(chainHeadCh)
@@ -483,7 +483,7 @@ func (bc *BlockChain) ViolationCasperFFGExecutePunish(before *types.Attestation,
 
 func (bc *BlockChain) VerifyLowerLimit(num uint64, currentNum uint64) bool {
 	if currentNum <= maxGapForOldOrFutureAttestation {
-		return num >= 0
+		return true
 	}
 	return num >= (currentNum - maxGapForOldOrFutureAttestation)
 }
