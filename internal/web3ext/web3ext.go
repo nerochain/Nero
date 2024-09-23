@@ -640,6 +640,25 @@ web3._extend({
 			call: 'eth_getBlockReceipts',
 			params: 1,
 		}),
+		new web3._extend.Method({
+			name: 'getTraceActionByTxHash',
+			call: 'eth_getTraceActionByTxHash',
+			params: 2,
+			inputFormatter: [null, null]
+		}),
+		new web3._extend.Method({
+			name: 'getTraceActionByBlockNumber',
+			call: 'eth_getTraceActionByBlockNumber',
+			params: 2,
+			inputFormatter: [null, null]
+		}),
+		new web3._extend.Method({
+			name: 'getTraceActionByBlockHash',
+			call: 'eth_getTraceActionByBlockHash',
+			params: 1,
+			inputFormatter: [null]
+		}),
+
 	],
 	properties: [
 		new web3._extend.Property({

@@ -39,8 +39,8 @@ const (
 	// ChainFreezerDifficultyTable indicates the name of the freezer total difficulty table.
 	ChainFreezerDifficultyTable = "diffs"
 
-	// FreezerInternalTxTable indicates the name of the freezer internal tx table.
-	ChainFreezerInternalTxTable = "internalTx"
+	// // FreezerInternalTxTable indicates the name of the freezer internal tx table.
+	// ChainFreezerInternalTxTable = "internalTx"
 )
 
 // chainFreezerNoSnappy configures whether compression is disabled for the ancient-tables.
