@@ -33,7 +33,6 @@ import (
 	"github.com/ethereum/go-ethereum/eth/downloader"
 	"github.com/ethereum/go-ethereum/internal/version"
 	"github.com/ethereum/go-ethereum/log"
-	"github.com/ethereum/go-ethereum/miner2"
 	"github.com/ethereum/go-ethereum/node"
 	"github.com/ethereum/go-ethereum/params"
 	"github.com/ethereum/go-ethereum/params/forks"
@@ -354,47 +353,6 @@ func (api *ConsensusAPI) forkchoiceUpdated(update engine.ForkchoiceStateV1, payl
 		}
 		// Set the safe block
 		api.eth.BlockChain().SetSafe(safeBlock.Header())
-	}
-	// If payload generation was requested, create a new block to be potentially
-	// sealed by the beacon client. The payload will be requested later, and we
-	// will replace it arbitrarily many times in between.
-	if payloadAttributes != nil {
-		args := &miner2.BuildPayloadArgs{
-			Parent:       update.HeadBlockHash,
-			Timestamp:    payloadAttributes.Timestamp,
-			FeeRecipient: payloadAttributes.SuggestedFeeRecipient,
-			Random:       payloadAttributes.Random,
-			Withdrawals:  payloadAttributes.Withdrawals,
-			BeaconRoot:   payloadAttributes.BeaconRoot,
-			Version:      payloadVersion,
-		}
-		id := args.Id()
-		// If we already are busy generating this work, then we do not need
-		// to start a second process.
-		if api.localBlocks.has(id) {
-			return valid(&id), nil
-		}
-		// If the beacon chain is ran by a simulator, then transaction insertion,
-		// block insertion and block production will happen without any timing
-		// delay between them. This will cause flaky simulator executions due to
-		// the transaction pool running its internal reset operation on a back-
-		// ground thread. To avoid the racey behavior - in simulator mode - the
-		// pool will be explicitly blocked on its reset before continuing to the
-		// block production below.
-		if simulatorMode {
-			if err := api.eth.TxPool().Sync(); err != nil {
-				log.Error("Failed to sync transaction pool", "err", err)
-				return valid(nil), engine.InvalidPayloadAttributes.With(err)
-			}
-		}
-		payload, err := BuildMiner2(api.eth).BuildPayload(args)
-
-		if err != nil {
-			log.Error("Failed to build payload", "err", err)
-			return valid(nil), engine.InvalidPayloadAttributes.With(err)
-		}
-		api.localBlocks.put(id, payload)
-		return valid(&id), nil
 	}
 	return valid(nil), nil
 }
@@ -896,17 +854,4 @@ func getBody(block *types.Block) *engine.ExecutionPayloadBodyV1 {
 		TransactionData: txs,
 		Withdrawals:     withdrawals,
 	}
-}
-
-func BuildMiner2(eth *eth.Ethereum) *miner2.Miner {
-	config := eth.Config().Miner
-	config2 := &miner2.Config{
-		Etherbase:           config.Etherbase,
-		PendingFeeRecipient: config.Etherbase,
-		ExtraData:           config.ExtraData,
-		GasCeil:             config.GasCeil,
-		GasPrice:            config.GasPrice,
-		Recommit:            config.Recommit,
-	}
-	return miner2.New(eth, *config2, eth.Engine())
 }

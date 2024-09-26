@@ -37,7 +37,6 @@ var (
 		Subcommands: []*cli.Command{
 			rlpxPingCommand,
 			rlpxEthTestCommand,
-			rlpxSnapTestCommand,
 		},
 	}
 	rlpxPingCommand = &cli.Command{
@@ -50,20 +49,6 @@ var (
 		Usage:     "Runs eth protocol tests against a node",
 		ArgsUsage: "<node>",
 		Action:    rlpxEthTest,
-		Flags: []cli.Flag{
-			testPatternFlag,
-			testTAPFlag,
-			testChainDirFlag,
-			testNodeFlag,
-			testNodeJWTFlag,
-			testNodeEngineFlag,
-		},
-	}
-	rlpxSnapTestCommand = &cli.Command{
-		Name:      "snap-test",
-		Usage:     "Runs snap protocol tests against a node",
-		ArgsUsage: "",
-		Action:    rlpxSnapTest,
 		Flags: []cli.Flag{
 			testPatternFlag,
 			testTAPFlag,
@@ -117,21 +102,11 @@ func rlpxPing(ctx *cli.Context) error {
 // rlpxEthTest runs the eth protocol test suite.
 func rlpxEthTest(ctx *cli.Context) error {
 	p := cliTestParams(ctx)
-	suite, err := ethtest.NewSuite(p.node, p.chainDir, p.engineAPI, p.jwt)
+	suite, err := ethtest.NewSuite(p.node, p.chainDir, p.engineAPI)
 	if err != nil {
 		exit(err)
 	}
 	return runTests(ctx, suite.EthTests())
-}
-
-// rlpxSnapTest runs the snap protocol test suite.
-func rlpxSnapTest(ctx *cli.Context) error {
-	p := cliTestParams(ctx)
-	suite, err := ethtest.NewSuite(p.node, p.chainDir, p.engineAPI, p.jwt)
-	if err != nil {
-		exit(err)
-	}
-	return runTests(ctx, suite.SnapTests())
 }
 
 type testParams struct {
