@@ -98,6 +98,9 @@ func TestExecutionSpecState(t *testing.T) {
 	st := new(testMatcher)
 
 	st.walk(t, executionSpecStateTestDir, func(t *testing.T, name string, test *StateTest) {
+		if strings.Contains(name, "blob") || strings.Contains(name, "withdraw") || strings.Contains(name, "beacon") {
+			t.Skip("blob/withdraw tx or beacon related features are not supported")
+		}
 		execStateTest(t, st, test)
 	})
 }
