@@ -574,10 +574,9 @@ func (g *Genesis) MustCommit(db ethdb.Database, triedb *triedb.Database) *types.
 
 // GenesisBlockForTesting creates and writes a block in which addr has the given wei balance.
 func GenesisBlockForTesting(db ethdb.Database, addr common.Address, balance *big.Int) *types.Block {
-	g := Genesis{
-		Alloc:   GenesisAlloc{addr: {Balance: balance}},
-		BaseFee: big.NewInt(params.InitialBaseFee),
-	}
+	g := DefaultTestnetGenesisBlock()
+	g.Alloc[addr] = types.Account{Balance: balance}
+	g.BaseFee = big.NewInt(params.InitialBaseFee)
 	return g.MustCommit(db, triedb.NewDatabase(db, triedb.HashDefaults))
 }
 
@@ -585,11 +584,19 @@ func GenesisBlockForTesting(db ethdb.Database, addr common.Address, balance *big
 func DefaultGenesisBlock() *Genesis {
 	return &Genesis{
 		Config:     params.MainnetChainConfig,
-		Nonce:      66,
-		ExtraData:  hexutil.MustDecode("0x11bbe8db4e347b4e8c937c1c8370e4b5ed33adb3db69cbdb7a38e1e50b1b82fa"),
-		GasLimit:   5000,
-		Difficulty: big.NewInt(17179869184),
-		Alloc:      decodePrealloc(mainnetAllocData),
+		Timestamp:  0x66ef5e00,
+		ExtraData:  hexutil.MustDecode("0x00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000"),
+		GasLimit:   0x2625a00,
+		BaseFee:    big.NewInt(1000000000),
+		Difficulty: big.NewInt(1),
+		Alloc:      decodePrealloc(testnetAllocData),
+		Validators: []types.ValidatorInfo{
+			types.MakeValidator("0x87392e3774B9B152948b764e3F0CB2aEdDBa1968", "0x949A2FcBE4EA880495aee6Bdd722827A4f3cdb34", "20", "200000000000000000000000000", true),
+			types.MakeValidator("0xAd3dB0454B6c1Ce22A566782119463aC332eDA9B", "0x949A2FcBE4EA880495aee6Bdd722827A4f3cdb34", "20", "200000000000000000000000000", true),
+			types.MakeValidator("0xcbA00A3d882497A54e4d3a0a03b7FE1d2495F295", "0x949A2FcBE4EA880495aee6Bdd722827A4f3cdb34", "20", "200000000000000000000000000", true),
+			types.MakeValidator("0x8c248Fa3079A33cfCc93EF107b0C698f45B8182C", "0x949A2FcBE4EA880495aee6Bdd722827A4f3cdb34", "20", "200000000000000000000000000", true),
+			types.MakeValidator("0x161c6074FE164DD60a1C149b1eA0cC641fe91662", "0x949A2FcBE4EA880495aee6Bdd722827A4f3cdb34", "20", "200000000000000000000000000", true),
+		},
 	}
 }
 
@@ -623,8 +630,9 @@ func BasicTurboGenesisBlock(config *params.ChainConfig, initialValidators []comm
 		alloc[faucet] = GenesisAccount{Balance: b}
 	}
 	validators := make([]types.ValidatorInfo, 0, len(initialValidators))
+	stake, _ := new(big.Int).SetString("200000000000000000000000000", 10)
 	for _, val := range initialValidators {
-		validators = append(validators, types.ValidatorInfo{Address: val, Manager: faucet, Rate: big.NewInt(20), Stake: big.NewInt(50000), AcceptDelegation: true})
+		validators = append(validators, types.ValidatorInfo{Address: val, Manager: faucet, Rate: big.NewInt(20), Stake: stake, AcceptDelegation: true})
 	}
 	alloc[system.StakingContract].Init.Admin = faucet
 	return &Genesis{
