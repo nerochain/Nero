@@ -34,7 +34,9 @@ func TestWithBlockGasLimitOption(t *testing.T) {
 	// Construct a simulator, targeting a different gas limit
 	sim := NewBackend(types.GenesisAlloc{}, WithBlockGasLimit(12_345_678))
 	defer sim.Close()
-
+	if sim.beacon != nil {
+		t.Skip("beacon is not supported")
+	}
 	client := sim.Client()
 	genesis, err := client.BlockByNumber(context.Background(), big.NewInt(0))
 	if err != nil {
