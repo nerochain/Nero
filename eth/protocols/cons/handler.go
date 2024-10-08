@@ -27,29 +27,6 @@ import (
 	"github.com/ethereum/go-ethereum/p2p/enr"
 )
 
-const (
-	// softResponseLimit is the target maximum size of replies to data retrievals.
-	softResponseLimit = 2 * 1024 * 1024
-
-	// maxCodeLookups is the maximum number of bytecodes to serve. This number is
-	// there to limit the number of disk lookups.
-	maxCodeLookups = 1024
-
-	// stateLookupSlack defines the ratio by how much a state response can exceed
-	// the requested limit in order to try and avoid breaking up contracts into
-	// multiple packages and proving them.
-	stateLookupSlack = 0.1
-
-	// maxTrieNodeLookups is the maximum number of state trie nodes to serve. This
-	// number is there to limit the number of disk lookups.
-	maxTrieNodeLookups = 1024
-
-	// maxTrieNodeTimeSpent is the maximum time we should spend on looking up trie nodes.
-	// If we spend too much time, then it's a fairly high chance of timing out
-	// at the remote side, which means all the work is in vain.
-	maxTrieNodeTimeSpent = 5 * time.Second
-)
-
 // Handler is a callback to invoke from an outside runner after the boilerplate
 // exchanges have passed.
 type Handler func(peer *Peer) error

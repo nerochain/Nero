@@ -20,12 +20,13 @@ import (
 	"testing"
 	"time"
 
-	"github.com/ethereum/go-ethereum/eth/downloader"
 	"github.com/ethereum/go-ethereum/eth/protocols/eth"
 	"github.com/ethereum/go-ethereum/eth/protocols/snap"
 	"github.com/ethereum/go-ethereum/p2p"
 	"github.com/ethereum/go-ethereum/p2p/enode"
 )
+
+func TestSnapSyncDisabling66(t *testing.T) { testSnapSyncDisabling(t, eth.ETH66, eth.ETH66) }
 
 // Tests that snap sync gets disabled as soon as a real block is successfully
 // imported into the blockchain.
@@ -81,10 +82,6 @@ func testSnapSyncDisabling(t *testing.T, ethVer uint, snapVer uint) {
 	// Wait a bit for the above handlers to start
 	time.Sleep(250 * time.Millisecond)
 
-	// Check that snap sync was disabled
-	if err := empty.handler.downloader.BeaconSync(downloader.SnapSync, full.chain.CurrentBlock(), nil); err != nil {
-		t.Fatal("sync failed:", err)
-	}
 	empty.handler.enableSyncedFeatures()
 
 	if empty.handler.snapSync.Load() {

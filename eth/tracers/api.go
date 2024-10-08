@@ -295,7 +295,6 @@ func (api *API) traceChain(start, end *types.Block, config *TraceConfig, closed 
 					)
 					if api.isTurboEngine {
 						isDoubleSignPunishTx = api.turboEngine.IsDoubleSignPunishTransaction(msg.From, tx, header)
-
 					}
 					if isDoubleSignPunishTx {
 						res, err = api.traceTurboApplyDoubleSignPunishTx(ctx, msg.From, tx, txctx, blockCtx, task.statedb, config)
@@ -1159,7 +1158,7 @@ func (api *API) traceTurboApplyDoubleSignPunishTx(ctx context.Context, sender co
 // traceTx configures a new tracer according to the provided configuration, and
 // executes the given message in the provided environment. The return value will
 // be tracer dependent.
-func (api *API) traceProposalTx(ctx context.Context, sender common.Address, tx *types.Transaction, txctx *Context, vmctx vm.BlockContext, statedb *state.StateDB, config *TraceConfig) (interface{}, error) {
+func (api *API) TraceProposalTx(ctx context.Context, sender common.Address, tx *types.Transaction, txctx *Context, vmctx vm.BlockContext, statedb *state.StateDB, config *TraceConfig) (interface{}, error) {
 	// Assemble the structured logger or the JavaScript tracer
 	var (
 		tracer *Tracer

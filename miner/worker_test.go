@@ -17,8 +17,8 @@
 package miner
 
 import (
+	"crypto/rand"
 	"math/big"
-	"math/rand"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -106,8 +106,6 @@ func init() {
 		GasPrice: big.NewInt(params.InitialBaseFee),
 	})
 	newTxs = append(newTxs, tx2)
-
-	rand.Seed(time.Now().UnixNano())
 }
 
 // testWorkerBackend implements worker.Backend interfaces and wraps all information needed during the testing.
@@ -115,7 +113,6 @@ type testWorkerBackend struct {
 	db         ethdb.Database
 	txPool     *txpool.TxPool
 	chain      *core.BlockChain
-	testTxFeed event.Feed
 	genesis    *core.Genesis
 	uncleBlock *types.Block
 }
@@ -123,7 +120,7 @@ type testWorkerBackend struct {
 func newTestWorkerBackend(t *testing.T, chainConfig *params.ChainConfig, engine consensus.Engine, db ethdb.Database, n int) *testWorkerBackend {
 	var gspec = core.Genesis{
 		Config: chainConfig,
-		Alloc:  core.GenesisAlloc{testBankAddress: {Balance: testBankFunds}},
+		Alloc:  types.GenesisAlloc{testBankAddress: {Balance: testBankFunds}},
 	}
 
 	switch e := engine.(type) {

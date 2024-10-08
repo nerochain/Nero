@@ -95,8 +95,8 @@ type chainInsertFn func(types.Blocks) (int, error)
 // peerDropFn is a callback type for dropping a peer detected as malicious.
 type peerDropFn func(id string)
 
-// continousInturnFn is a callback type for getting continous block in turn number
-type continousInturnFn func(blockNumber *big.Int) uint64
+// continuousInturnFn is a callback type for getting continuous block in turn number
+type continuousInturnFn func(blockNumber *big.Int) uint64
 
 // blockAnnounce is the hash notification of the availability of a new block in the
 // network.
@@ -180,15 +180,15 @@ type BlockFetcher struct {
 	queued map[common.Hash]*blockOrHeaderInject      // Set of already queued blocks (to dedup imports)
 
 	// Callbacks
-	getHeader       HeaderRetrievalFn  // Retrieves a header from the local chain
-	getBlock        blockRetrievalFn   // Retrieves a block from the local chain
-	verifyHeader    headerVerifierFn   // Checks if a block's headers have a valid proof of work
-	broadcastBlock  blockBroadcasterFn // Broadcasts a block to connected peers
-	chainHeight     chainHeightFn      // Retrieves the current chain's height
-	insertHeaders   headersInsertFn    // Injects a batch of headers into the chain
-	insertChain     chainInsertFn      // Injects a batch of blocks into the chain
-	dropPeer        peerDropFn         // Drops a peer for misbehaving
-	continousInturn continousInturnFn  // Gets continous blocks in turn number
+	getHeader        HeaderRetrievalFn  // Retrieves a header from the local chain
+	getBlock         blockRetrievalFn   // Retrieves a block from the local chain
+	verifyHeader     headerVerifierFn   // Checks if a block's headers have a valid proof of work
+	broadcastBlock   blockBroadcasterFn // Broadcasts a block to connected peers
+	chainHeight      chainHeightFn      // Retrieves the current chain's height
+	insertHeaders    headersInsertFn    // Injects a batch of headers into the chain
+	insertChain      chainInsertFn      // Injects a batch of blocks into the chain
+	dropPeer         peerDropFn         // Drops a peer for misbehaving
+	continuousInturn continuousInturnFn // Gets continuous blocks in turn number
 
 	// Testing hooks
 	announceChangeHook func(common.Hash, bool)           // Method to call upon adding or deleting a hash from the blockAnnounce list
@@ -199,32 +199,32 @@ type BlockFetcher struct {
 }
 
 // NewBlockFetcher creates a block fetcher to retrieve blocks based on hash announcements.
-func NewBlockFetcher(light bool, getHeader HeaderRetrievalFn, getBlock blockRetrievalFn, verifyHeader headerVerifierFn, broadcastBlock blockBroadcasterFn, chainHeight chainHeightFn, insertHeaders headersInsertFn, insertChain chainInsertFn, dropPeer peerDropFn, continousInturn continousInturnFn) *BlockFetcher {
+func NewBlockFetcher(light bool, getHeader HeaderRetrievalFn, getBlock blockRetrievalFn, verifyHeader headerVerifierFn, broadcastBlock blockBroadcasterFn, chainHeight chainHeightFn, insertHeaders headersInsertFn, insertChain chainInsertFn, dropPeer peerDropFn, continuousInturn continuousInturnFn) *BlockFetcher {
 	return &BlockFetcher{
-		light:           light,
-		notify:          make(chan *blockAnnounce),
-		inject:          make(chan *blockOrHeaderInject),
-		headerFilter:    make(chan chan *headerFilterTask),
-		bodyFilter:      make(chan chan *bodyFilterTask),
-		done:            make(chan common.Hash),
-		quit:            make(chan struct{}),
-		announces:       make(map[string]int),
-		announced:       make(map[common.Hash][]*blockAnnounce),
-		fetching:        make(map[common.Hash]*blockAnnounce),
-		fetched:         make(map[common.Hash][]*blockAnnounce),
-		completing:      make(map[common.Hash]*blockAnnounce),
-		queue:           prque.New[int64, *blockOrHeaderInject](nil),
-		queues:          make(map[string]int),
-		queued:          make(map[common.Hash]*blockOrHeaderInject),
-		getHeader:       getHeader,
-		getBlock:        getBlock,
-		verifyHeader:    verifyHeader,
-		broadcastBlock:  broadcastBlock,
-		chainHeight:     chainHeight,
-		insertHeaders:   insertHeaders,
-		insertChain:     insertChain,
-		dropPeer:        dropPeer,
-		continousInturn: continousInturn,
+		light:            light,
+		notify:           make(chan *blockAnnounce),
+		inject:           make(chan *blockOrHeaderInject),
+		headerFilter:     make(chan chan *headerFilterTask),
+		bodyFilter:       make(chan chan *bodyFilterTask),
+		done:             make(chan common.Hash),
+		quit:             make(chan struct{}),
+		announces:        make(map[string]int),
+		announced:        make(map[common.Hash][]*blockAnnounce),
+		fetching:         make(map[common.Hash]*blockAnnounce),
+		fetched:          make(map[common.Hash][]*blockAnnounce),
+		completing:       make(map[common.Hash]*blockAnnounce),
+		queue:            prque.New[int64, *blockOrHeaderInject](nil),
+		queues:           make(map[string]int),
+		queued:           make(map[common.Hash]*blockOrHeaderInject),
+		getHeader:        getHeader,
+		getBlock:         getBlock,
+		verifyHeader:     verifyHeader,
+		broadcastBlock:   broadcastBlock,
+		chainHeight:      chainHeight,
+		insertHeaders:    insertHeaders,
+		insertChain:      insertChain,
+		dropPeer:         dropPeer,
+		continuousInturn: continuousInturn,
 	}
 }
 
@@ -361,7 +361,7 @@ func (f *BlockFetcher) loop() {
 			// If too high up the chain or phase, continue later
 			number := op.number()
 			if number > height+1 {
-				if !f.hasParent(op) || number > height+f.continousInturn(big.NewInt(int64(number)))+1 {
+				if !f.hasParent(op) || number > height+f.continuousInturn(big.NewInt(int64(number)))+1 {
 					f.queue.Push(op, -int64(number))
 					if f.queueChangeHook != nil {
 						f.queueChangeHook(hash, true)
@@ -644,7 +644,6 @@ func (f *BlockFetcher) loop() {
 						} else {
 							f.forgetHash(hash)
 						}
-
 					}
 					if matched {
 						task.transactions = append(task.transactions[:i], task.transactions[i+1:]...)

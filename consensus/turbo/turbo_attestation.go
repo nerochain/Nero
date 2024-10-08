@@ -23,7 +23,7 @@ const (
 	attestationThresholdNumerator   = 2
 	attestationThresholdDenominator = 3
 
-	maxOldBlockToAttest = 4
+	// maxOldBlockToAttest = 4
 )
 
 var (

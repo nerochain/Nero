@@ -220,6 +220,7 @@ func TestAddOneValidAttestationToRecentCache(t *testing.T) {
 			Hash:   blockHash,
 			Number: new(big.Int).SetUint64(100),
 		})), priv)
+		require.NoError(t, err)
 		a := types.NewAttestation(&types.RangeEdge{
 			Hash:   blockHash,
 			Number: new(big.Int).SetUint64(uint64(i + 1)),
@@ -300,6 +301,7 @@ func TestAddOneAttestationToRecentCache(t *testing.T) {
 			Hash:   blockHash,
 			Number: new(big.Int).SetUint64(100),
 		})), priv)
+		require.NoError(t, err)
 		a := types.NewAttestation(&types.RangeEdge{
 			Hash:   blockHash,
 			Number: new(big.Int).SetUint64(uint64(1)),
@@ -336,6 +338,7 @@ func TestAddOneAttestationToRecentCacheViolationCasperFFG(t *testing.T) {
 		Hash:   blockHash,
 		Number: new(big.Int).SetUint64(100),
 	})), priv)
+	require.NoError(t, err)
 	a := types.NewAttestation(&types.RangeEdge{
 		Hash:   blockHash,
 		Number: new(big.Int).SetUint64(uint64(1)),
@@ -353,6 +356,7 @@ func TestAddOneAttestationToRecentCacheViolationCasperFFG(t *testing.T) {
 		Hash:   blockHash,
 		Number: new(big.Int).SetUint64(100),
 	})), priv)
+	require.NoError(t, err)
 	b := types.NewAttestation(&types.RangeEdge{
 		Hash:   blockHash,
 		Number: new(big.Int).SetUint64(uint64(3)),
@@ -370,6 +374,7 @@ func TestAddOneAttestationToRecentCacheViolationCasperFFG(t *testing.T) {
 		Hash:   blockHash,
 		Number: new(big.Int).SetUint64(101),
 	})), priv)
+	require.NoError(t, err)
 	c := types.NewAttestation(&types.RangeEdge{
 		Hash:   blockHash,
 		Number: new(big.Int).SetUint64(uint64(3)),
@@ -387,6 +392,7 @@ func TestAddOneAttestationToRecentCacheViolationCasperFFG(t *testing.T) {
 		Hash:   blockHash,
 		Number: new(big.Int).SetUint64(102),
 	})), priv)
+	require.NoError(t, err)
 	d := types.NewAttestation(&types.RangeEdge{
 		Hash:   blockHash,
 		Number: new(big.Int).SetUint64(uint64(100)),
@@ -437,6 +443,7 @@ func TestVerifyCasperFFGRule(t *testing.T) {
 		Hash:   blockHash,
 		Number: new(big.Int).SetUint64(100),
 	})), priv)
+	require.NoError(t, err)
 
 	tests := []struct {
 		before *types.Attestation
@@ -541,8 +548,8 @@ func TestVerifyCasperFFGRule(t *testing.T) {
 			tt.after.SourceRangeEdge.Number.Uint64(), tt.after.TargetRangeEdge.Number.Uint64())
 		require.True(t, result == tt.result)
 	}
-
 }
+
 func TestIsDoubleSignPunishTransaction(t *testing.T) {
 	header := &types.Header{
 		ParentHash: common.Hash{},

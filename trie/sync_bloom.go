@@ -36,7 +36,6 @@ var (
 	bloomLoadMeter  = metrics.NewRegisteredMeter("trie/bloom/load", nil)
 	bloomTestMeter  = metrics.NewRegisteredMeter("trie/bloom/test", nil)
 	bloomMissMeter  = metrics.NewRegisteredMeter("trie/bloom/miss", nil)
-	bloomFaultMeter = metrics.NewRegisteredMeter("trie/bloom/fault", nil)
 	bloomErrorGauge = metrics.NewRegisteredGauge("trie/bloom/error", nil)
 )
 

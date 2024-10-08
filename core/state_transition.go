@@ -214,9 +214,6 @@ type StateTransition struct {
 	initialGas   uint64
 	state        vm.StateDB
 	evm          *vm.EVM
-	feeAddress   common.Address
-	feePercent   uint64 //meta transaction fee percent
-	realPayload  []byte //the real transaction fee percent
 }
 
 // NewStateTransition initialises and returns a new state transition object.

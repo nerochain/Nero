@@ -26,7 +26,6 @@ type Attestation struct {
 
 	// caches
 	hash   atomic.Value
-	size   atomic.Value
 	signer atomic.Value
 }
 
@@ -130,15 +129,15 @@ type BlockNumAttestations struct {
 	AttestsMap map[common.Hash]map[common.Hash]bool // (source+target)Hash -> attestation Hash -> bool
 }
 
-type storedBlockAttestations struct {
-	BlockHash    common.Hash
-	Attestations []*Signature
-}
+// type storedBlockAttestations struct {
+// 	BlockHash    common.Hash
+// 	Attestations []*Signature
+// }
 
-type storedBlockNumAttestations struct {
-	BlockNumber *big.Int
-	BlockAttes  []*storedBlockAttestations
-}
+// type storedBlockNumAttestations struct {
+// 	BlockNumber *big.Int
+// 	BlockAttes  []*storedBlockAttestations
+// }
 
 // Block attestation status
 const (

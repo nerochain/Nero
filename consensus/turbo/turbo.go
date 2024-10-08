@@ -84,15 +84,15 @@ var (
 	errExtraValidators = errors.New("non-checkpoint block contains extra validator list")
 
 	// errInvalidExtraValidators is returned if validator data in extra-data field is invalid.
-	errInvalidExtraValidators = errors.New("Invalid extra validators in extra data field")
+	errInvalidExtraValidators = errors.New("invalid extra validators in extra data field")
 
-	// errInvalidCheckpointValidators is returned if a checkpoint block contains an
-	// invalid list of validators (i.e. non divisible by 20 bytes).
-	errInvalidCheckpointValidators = errors.New("invalid validator list on checkpoint block")
+	// // errInvalidCheckpointValidators is returned if a checkpoint block contains an
+	// // invalid list of validators (i.e. non divisible by 20 bytes).
+	// errInvalidCheckpointValidators = errors.New("invalid validator list on checkpoint block")
 
-	// errMismatchingCheckpointValidators is returned if a checkpoint block contains a
-	// list of validators different than the one the local node calculated.
-	errMismatchingCheckpointValidators = errors.New("mismatching validator list on checkpoint block")
+	// // errMismatchingCheckpointValidators is returned if a checkpoint block contains a
+	// // list of validators different than the one the local node calculated.
+	// errMismatchingCheckpointValidators = errors.New("mismatching validator list on checkpoint block")
 
 	// errInvalidMixDigest is returned if a block's mix digest is non-zero.
 	errInvalidMixDigest = errors.New("non-zero mix digest")
@@ -109,7 +109,7 @@ var (
 
 	// errInvalidTimestamp is returned if the timestamp of a block is lower than
 	// the previous block's timestamp + the minimum block period.
-	errInvalidTimestamp = errors.New("invalid timestamp")
+	// errInvalidTimestamp = errors.New("invalid timestamp")
 
 	// ErrInvalidTimestamp is returned if the timestamp of a block is lower than
 	// the previous block's timestamp + the minimum block period.
@@ -127,22 +127,19 @@ var (
 	errRecentlySigned = errors.New("recently signed")
 
 	// errInvalidValidatorLen is returned if validators length is zero or bigger than maxValidators.
-	errInvalidValidatorsLength = errors.New("Invalid validators length")
+	// errInvalidValidatorsLength = errors.New("Invalid validators length")
 
 	// errInvalidCoinbase is returned if the coinbase isn't the validator of the block.
-	errInvalidCoinbase = errors.New("Invalid coin base")
+	errInvalidCoinbase = errors.New("invalid coin base")
 
 	// CasperFFG
-	errIsNotReadyAttest        = errors.New("is not ready attest")
-	errIsNotValidator          = errors.New("the signer is not a validator")
-	errNotReachRange           = errors.New("the current block height does not reach the range")
-	errInclusion               = errors.New("inclusion relationship with last submission")
+	errIsNotReadyAttest = errors.New("is not ready attest")
+	errIsNotValidator   = errors.New("the signer is not a validator")
+	// errNotReachRange           = errors.New("the current block height does not reach the range")
+	// errInclusion               = errors.New("inclusion relationship with last submission")
 	errIsNotAuthorizedAtHeight = errors.New("the current verifier is invalid at the specified height")
 	errSignFailed              = errors.New("sign attestation data failed")
 	errContainIllegalTx        = errors.New("contains illegal transactions")
-
-	// errInvalidProposalCount is returned when the count of proposalTxs doesn't not match
-	errInvalidProposalCount = errors.New("invalid proposal tx count")
 )
 
 // StateFn gets state by the state root hash.
@@ -187,9 +184,7 @@ type Turbo struct {
 	signatures *lru.ARCCache // Signatures of recent blocks to speed up mining
 
 	accesslist      *lru.Cache // accesslists caches recent accesslist to speed up transactions validation
-	accessLock      sync.Mutex // Make sure only get accesslist once for each block
 	eventCheckRules *lru.Cache // eventCheckRules caches recent EventCheckRules to speed up log validation
-	rulesLock       sync.Mutex // Make sure only get eventCheckRules once for each block
 
 	signer types.Signer // the signer instance to recover tx sender
 
@@ -627,7 +622,6 @@ func (c *Turbo) FinalizeAndAssemble(chain consensus.ChainHeaderReader, header *t
 
 	// Assemble and return the final block for sealing
 	return types.NewBlock(header, &types.Body{Transactions: body.Transactions}, receipts, trie.NewStackTrie(nil)), receipts, nil
-
 }
 
 // prepareFinalize does some preparing jobs before finalize, including:
@@ -949,8 +943,8 @@ func (c *Turbo) PreHandle(chain consensus.ChainHeaderReader, header *types.Heade
 
 // CalculateGasPool determines gas limit of each block
 func (c *Turbo) CalculateGasPool(header *types.Header) uint64 {
-	idxInturn := header.Number.Uint64() % params.ContinousInturn
-	if idxInturn == 0 || idxInturn == params.ContinousInturn-1 {
+	idxInturn := header.Number.Uint64() % params.ContinuousInturn
+	if idxInturn == 0 || idxInturn == params.ContinuousInturn-1 {
 		return header.GasLimit / 2
 	}
 	return header.GasLimit

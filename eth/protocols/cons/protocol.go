@@ -2,8 +2,9 @@ package cons
 
 import (
 	"errors"
-	"github.com/ethereum/go-ethereum/core/types"
 	"math/big"
+
+	"github.com/ethereum/go-ethereum/core/types"
 )
 
 // Constants to match up protocol versions and messages
@@ -41,7 +42,7 @@ var (
 	errMsgTooLarge    = errors.New("message too long")
 	errDecode         = errors.New("invalid message")
 	errInvalidMsgCode = errors.New("invalid message code")
-	errBadRequest     = errors.New("bad request")
+	// errBadRequest     = errors.New("bad request")
 )
 
 // Packet represents a p2p message in the `cons` protocol.

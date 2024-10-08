@@ -839,9 +839,6 @@ func DeleteBlockWithoutNumber(db ethdb.KeyValueWriter, hash common.Hash, number 
 }
 
 const badBlockToKeep = 10
-const blockStatusToKeep = 100
-const attestationToKeep = 50
-const casperFFGToKeep = 50
 const casperFFGPunishToKeep = 2 * 200 / 2 * 20
 
 type badBlock struct {

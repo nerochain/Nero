@@ -68,7 +68,7 @@ func newTestBackendWithGenerator(blocks int, generator func(int, *core.BlockGen)
 	db := rawdb.NewMemoryDatabase()
 	gen := &core.Genesis{
 		Config: params.TestChainConfig,
-		Alloc:  core.GenesisAlloc{testAddr: {Balance: big.NewInt(100_000_000_000_000_000)}},
+		Alloc:  types.GenesisAlloc{testAddr: {Balance: big.NewInt(100_000_000_000_000_000)}},
 	}
 	gen.MustCommit(db, triedb.NewDatabase(db, triedb.HashDefaults))
 

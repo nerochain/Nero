@@ -624,7 +624,7 @@ func BasicTurboGenesisBlock(config *params.ChainConfig, initialValidators []comm
 	}
 	validators := make([]types.ValidatorInfo, 0, len(initialValidators))
 	for _, val := range initialValidators {
-		validators = append(validators, types.ValidatorInfo{val, faucet, big.NewInt(20), big.NewInt(50000), true})
+		validators = append(validators, types.ValidatorInfo{Address: val, Manager: faucet, Rate: big.NewInt(20), Stake: big.NewInt(50000), AcceptDelegation: true})
 	}
 	alloc[system.StakingContract].Init.Admin = faucet
 	return &Genesis{

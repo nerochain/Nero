@@ -95,7 +95,7 @@ func newTester(light bool) *fetcherTester {
 		blocks:  map[common.Hash]*types.Block{genesis.Hash(): genesis},
 		drops:   make(map[string]bool),
 	}
-	tester.fetcher = NewBlockFetcher(light, tester.getHeader, tester.getBlock, tester.verifyHeader, tester.broadcastBlock, tester.chainHeight, tester.insertHeaders, tester.insertChain, tester.dropPeer, tester.continousInturn)
+	tester.fetcher = NewBlockFetcher(light, tester.getHeader, tester.getBlock, tester.verifyHeader, tester.broadcastBlock, tester.chainHeight, tester.insertHeaders, tester.insertChain, tester.dropPeer, tester.continuousInturn)
 	tester.fetcher.Start()
 
 	return tester
@@ -188,8 +188,8 @@ func (f *fetcherTester) dropPeer(peer string) {
 	f.drops[peer] = true
 }
 
-// continousInturn is an emulator for getting continous in turn
-func (f *fetcherTester) continousInturn(blockNumber *big.Int) uint64 {
+// continuousInturn is an emulator for getting continuous in turn
+func (f *fetcherTester) continuousInturn(blockNumber *big.Int) uint64 {
 	return 1
 }
 
