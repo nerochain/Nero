@@ -18,6 +18,8 @@
 package catalyst
 
 import (
+	"crypto/sha256"
+	"encoding/binary"
 	"errors"
 	"fmt"
 	"strconv"
@@ -36,6 +38,7 @@ import (
 	"github.com/ethereum/go-ethereum/node"
 	"github.com/ethereum/go-ethereum/params"
 	"github.com/ethereum/go-ethereum/params/forks"
+	"github.com/ethereum/go-ethereum/rlp"
 	"github.com/ethereum/go-ethereum/rpc"
 )
 
@@ -75,6 +78,50 @@ const (
 	// the beacon client is offline.
 	beaconUpdateWarnFrequency = 5 * time.Minute
 )
+
+// BuildPayloadArgs contains the provided parameters for building payload.
+type BuildPayloadArgs struct {
+	Parent       common.Hash           // The parent block to build payload on top
+	Timestamp    uint64                // The provided timestamp of generated payload
+	FeeRecipient common.Address        // The provided recipient address for collecting transaction fee
+	Random       common.Hash           // The provided randomness value
+	Withdrawals  types.Withdrawals     // The provided withdrawals
+	BeaconRoot   *common.Hash          // The provided beaconRoot (Cancun)
+	Version      engine.PayloadVersion // Versioning byte for payload id calculation.
+}
+
+// Id computes an 8-byte identifier by hashing the components of the payload arguments.
+func (args *BuildPayloadArgs) Id() engine.PayloadID {
+	hasher := sha256.New()
+	hasher.Write(args.Parent[:])
+	binary.Write(hasher, binary.BigEndian, args.Timestamp)
+	hasher.Write(args.Random[:])
+	hasher.Write(args.FeeRecipient[:])
+	rlp.Encode(hasher, args.Withdrawals)
+	if args.BeaconRoot != nil {
+		hasher.Write(args.BeaconRoot[:])
+	}
+	var out engine.PayloadID
+	copy(out[:], hasher.Sum(nil)[:8])
+	out[0] = byte(args.Version)
+	return out
+}
+
+type FakePayload struct {
+	id engine.PayloadID
+}
+
+func (p *FakePayload) Resolve() *engine.ExecutionPayloadEnvelope {
+	return &engine.ExecutionPayloadEnvelope{}
+}
+
+func (p *FakePayload) ResolveFull() *engine.ExecutionPayloadEnvelope {
+	return &engine.ExecutionPayloadEnvelope{}
+}
+
+func BuildPayload(args *BuildPayloadArgs) (Payload, error) {
+	return &FakePayload{id: args.Id()}, nil
+}
 
 // All methods provided over the engine endpoint.
 var caps = []string{
@@ -353,6 +400,48 @@ func (api *ConsensusAPI) forkchoiceUpdated(update engine.ForkchoiceStateV1, payl
 		}
 		// Set the safe block
 		api.eth.BlockChain().SetSafe(safeBlock.Header())
+	}
+
+	// If payload generation was requested, create a new block to be potentially
+	// sealed by the beacon client. The payload will be requested later, and we
+	// will replace it arbitrarily many times in between.
+	if payloadAttributes != nil {
+		args := &BuildPayloadArgs{
+			Parent:       update.HeadBlockHash,
+			Timestamp:    payloadAttributes.Timestamp,
+			FeeRecipient: payloadAttributes.SuggestedFeeRecipient,
+			Random:       payloadAttributes.Random,
+			Withdrawals:  payloadAttributes.Withdrawals,
+			BeaconRoot:   payloadAttributes.BeaconRoot,
+			Version:      payloadVersion,
+		}
+		id := args.Id()
+		// If we already are busy generating this work, then we do not need
+		// to start a second process.
+		if api.localBlocks.has(id) {
+			return valid(&id), nil
+		}
+		// If the beacon chain is ran by a simulator, then transaction insertion,
+		// block insertion and block production will happen without any timing
+		// delay between them. This will cause flaky simulator executions due to
+		// the transaction pool running its internal reset operation on a back-
+		// ground thread. To avoid the racey behavior - in simulator mode - the
+		// pool will be explicitly blocked on its reset before continuing to the
+		// block production below.
+		if simulatorMode {
+			if err := api.eth.TxPool().Sync(); err != nil {
+				log.Error("Failed to sync transaction pool", "err", err)
+				return valid(nil), engine.InvalidPayloadAttributes.With(err)
+			}
+		}
+		payload, err := BuildPayload(args)
+
+		if err != nil {
+			log.Error("Failed to build payload", "err", err)
+			return valid(nil), engine.InvalidPayloadAttributes.With(err)
+		}
+		api.localBlocks.put(id, payload)
+		return valid(&id), nil
 	}
 	return valid(nil), nil
 }
