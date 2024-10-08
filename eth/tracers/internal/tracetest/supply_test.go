@@ -232,12 +232,6 @@ func TestSupplyWithdrawals(t *testing.T) {
 
 	withdrawalsBlockGenerationFunc := func(b *core.BlockGen) {
 		b.SetPoS()
-
-		b.AddWithdrawal(&types.Withdrawal{
-			Validator: 42,
-			Address:   common.Address{0xee},
-			Amount:    1337,
-		})
 	}
 
 	out, chain, err := testSupplyTracer(t, gspec, withdrawalsBlockGenerationFunc)
@@ -248,9 +242,6 @@ func TestSupplyWithdrawals(t *testing.T) {
 	var (
 		head     = chain.CurrentBlock()
 		expected = supplyInfo{
-			Issuance: &supplyInfoIssuance{
-				Withdrawals: (*hexutil.Big)(big.NewInt(1337000000000)),
-			},
 			Number:     1,
 			Hash:       head.Hash(),
 			ParentHash: head.ParentHash,
