@@ -47,7 +47,7 @@ func genFields(block uint64) fields {
 		result.Validators[addr] = struct{}{}
 		if i < 11 {
 			for r := uint64(0); r < continuousInturn; r++ {
-				result.Recents[block-(11-uint64(i))*continuousInturn+r] = addr
+				result.Recents[block-(10-uint64(i))*continuousInturn+r] = addr
 			}
 		}
 	}
@@ -98,12 +98,10 @@ func TestSnapshot_inturn(t *testing.T) {
 		args   args
 		want   bool
 	}{
-		{"case1", genFields(100), args{100, validatorAddress(4)}, true},
-		{"case2", genFields(100), args{101, validatorAddress(4)}, true},
-		{"case3", genFields(100), args{102, validatorAddress(4)}, true},
-		{"case4", genFields(100), args{103, validatorAddress(4)}, true},
-		{"case5", genFields(100), args{104, validatorAddress(4)}, false},
-		{"case5", genFields(100), args{104, validatorAddress(5)}, true},
+		{"case1", genFields(100), args{100, validatorAddress(16)}, true},
+		{"case2", genFields(100), args{101, validatorAddress(17)}, true},
+		{"case3", genFields(100), args{102, validatorAddress(16)}, false},
+		{"case4", genFields(100), args{103, validatorAddress(17)}, false},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
