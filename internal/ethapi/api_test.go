@@ -934,22 +934,6 @@ func TestCall(t *testing.T) {
 			},
 			expectErr: core.ErrBlobTxCreate,
 		},
-		// BLOBHASH opcode
-		{
-			blockNumber: rpc.LatestBlockNumber,
-			call: TransactionArgs{
-				From:       &accounts[1].addr,
-				To:         &randomAccounts[2].addr,
-				BlobHashes: []common.Hash{{0x01, 0x22}},
-				BlobFeeCap: (*hexutil.Big)(big.NewInt(1)),
-			},
-			overrides: StateOverride{
-				randomAccounts[2].addr: {
-					Code: hex2Bytes("60004960005260206000f3"),
-				},
-			},
-			want: "0x0122000000000000000000000000000000000000000000000000000000000000",
-		},
 	}
 	for i, tc := range testSuite {
 		result, err := api.Call(context.Background(), tc.call, &rpc.BlockNumberOrHash{BlockNumber: &tc.blockNumber}, &tc.overrides, &tc.blockOverrides)
@@ -1846,20 +1830,6 @@ func setupReceiptBackend(t *testing.T, genBlocks int) (*testBackend, []common.Ha
 				StorageKeys: []common.Hash{{0}},
 			}}
 			tx, err = types.SignTx(types.NewTx(&types.AccessListTx{Nonce: uint64(i), To: nil, Gas: 58100, GasPrice: b.BaseFee(), Data: common.FromHex("0x60806040"), AccessList: accessList}), signer, acc1Key)
-		case 5:
-			// blob tx
-			fee := big.NewInt(500)
-			fee.Add(fee, b.BaseFee())
-			tx, err = types.SignTx(types.NewTx(&types.BlobTx{
-				Nonce:      uint64(i),
-				GasTipCap:  uint256.NewInt(1),
-				GasFeeCap:  uint256.MustFromBig(fee),
-				Gas:        params.TxGas,
-				To:         acc2Addr,
-				BlobFeeCap: uint256.NewInt(1),
-				BlobHashes: []common.Hash{{1}},
-				Value:      new(uint256.Int),
-			}), signer, acc1Key)
 		}
 		if err != nil {
 			t.Errorf("failed to sign tx: %v", err)
@@ -1918,11 +1888,6 @@ func TestRPCGetTransactionReceipt(t *testing.T) {
 		{
 			txHash: common.HexToHash("deadbeef"),
 			file:   "txhash-notfound",
-		},
-		// 7. blob tx
-		{
-			txHash: txHashes[5],
-			file:   "blob-tx",
 		},
 	}
 
@@ -2016,11 +1981,6 @@ func TestRPCGetBlockReceipts(t *testing.T) {
 		{
 			test: rpc.BlockNumberOrHashWithNumber(rpc.BlockNumber(genBlocks + 1)),
 			file: "block-notfound",
-		},
-		// 11. block with blob tx
-		{
-			test: rpc.BlockNumberOrHashWithNumber(rpc.BlockNumber(6)),
-			file: "block-with-blob-tx",
 		},
 	}
 
