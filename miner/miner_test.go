@@ -87,7 +87,7 @@ func (bc *testBlockChain) SubscribeChainHeadEvent(ch chan<- core.ChainHeadEvent)
 }
 
 func (bc *testBlockChain) Config() *params.ChainConfig {
-	return nil
+	return bc.config
 }
 
 func TestMiner(t *testing.T) {
