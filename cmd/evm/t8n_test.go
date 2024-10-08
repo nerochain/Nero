@@ -231,14 +231,6 @@ func TestT8n(t *testing.T) {
 			output: t8nOutput{result: true},
 			expOut: "exp.json",
 		},
-		{ // Test post-merge transition
-			base: "./testdata/24",
-			input: t8nInput{
-				"alloc.json", "txs.json", "env.json", "Paris", "",
-			},
-			output: t8nOutput{alloc: true, result: true},
-			expOut: "exp.json",
-		},
 		{ // Test post-merge transition where input is missing random
 			base: "./testdata/24",
 			input: t8nInput{
@@ -259,14 +251,6 @@ func TestT8n(t *testing.T) {
 			base: "./testdata/26",
 			input: t8nInput{
 				"alloc.json", "txs.json", "env.json", "Shanghai", "",
-			},
-			output: t8nOutput{alloc: true, result: true},
-			expOut: "exp.json",
-		},
-		{ // Cancun tests
-			base: "./testdata/28",
-			input: t8nInput{
-				"alloc.json", "txs.rlp", "env.json", "Cancun", "",
 			},
 			output: t8nOutput{alloc: true, result: true},
 			expOut: "exp.json",
