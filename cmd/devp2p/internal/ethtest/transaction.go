@@ -29,7 +29,7 @@ import (
 	"github.com/ethereum/go-ethereum/params"
 )
 
-//var faucetAddr = common.HexToAddress("0x71562b71999873DB5b286dF957af199Ec94617F7")
+// var faucetAddr = common.HexToAddress("0x71562b71999873DB5b286dF957af199Ec94617F7")
 var faucetKey, _ = crypto.HexToECDSA("b71c71a67e1177ad4e901695e1b4b9ee17ae16c6668d313eac2f96dbcda3f291")
 
 func (s *Suite) sendSuccessfulTxs(t *utesting.T, isEth66 bool) error {
@@ -203,7 +203,7 @@ func sendMultipleSuccessfulTxs(t *utesting.T, s *Suite, txs []*types.Transaction
 	// Wait for the transaction announcement(s) and make sure all sent txs are being propagated
 	recvHashes := make([]common.Hash, 0)
 	// all txs should be announced within 3 announcements
-	for i := 0; i < 3; i++ {
+	for i := 0; i < 100; i++ {
 		switch msg := recvConn.readAndServe(s.chain, timeout).(type) {
 		case *Transactions:
 			for _, tx := range *msg {

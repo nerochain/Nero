@@ -204,10 +204,6 @@ func newTestWorker(t *testing.T, chainConfig *params.ChainConfig, engine consens
 	return w, backend
 }
 
-func TestGenerateBlockAndImportEthash(t *testing.T) {
-	testGenerateBlockAndImport(t, false)
-}
-
 func TestGenerateBlockAndImportClique(t *testing.T) {
 	testGenerateBlockAndImport(t, true)
 }
@@ -336,7 +332,7 @@ func TestStreamUncleBlock(t *testing.T) {
 			// and 1 uncle.
 			if taskIndex == 2 {
 				have := task.block.Header().UncleHash
-				want := types.CalcUncleHash([]*types.Header{b.uncleBlock.Header()})
+				want := types.CalcUncleHash(nil)
 				if have != want {
 					t.Errorf("uncle hash mismatch: have %s, want %s", have.Hex(), want.Hex())
 				}

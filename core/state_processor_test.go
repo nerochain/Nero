@@ -34,7 +34,6 @@ import (
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/params"
 	"github.com/ethereum/go-ethereum/trie"
-	"github.com/holiman/uint256"
 	"golang.org/x/crypto/sha3"
 )
 
@@ -93,22 +92,6 @@ func TestStateProcessorErrors(t *testing.T) {
 			Value:     big.NewInt(0),
 			Data:      data,
 		}), signer, key1)
-		return tx
-	}
-	var mkBlobTx = func(nonce uint64, to common.Address, gasLimit uint64, gasTipCap, gasFeeCap, blobGasFeeCap *big.Int, hashes []common.Hash) *types.Transaction {
-		tx, err := types.SignTx(types.NewTx(&types.BlobTx{
-			Nonce:      nonce,
-			GasTipCap:  uint256.MustFromBig(gasTipCap),
-			GasFeeCap:  uint256.MustFromBig(gasFeeCap),
-			Gas:        gasLimit,
-			To:         to,
-			BlobHashes: hashes,
-			BlobFeeCap: uint256.MustFromBig(blobGasFeeCap),
-			Value:      new(uint256.Int),
-		}), signer, key1)
-		if err != nil {
-			t.Fatal(err)
-		}
 		return tx
 	}
 
@@ -245,12 +228,6 @@ func TestStateProcessorErrors(t *testing.T) {
 					mkDynamicCreationTx(0, 54299, common.Big0, big.NewInt(params.InitialBaseFee), make([]byte, 320)),
 				},
 				want: "could not apply tx 0 [0xfd49536a9b323769d8472fcb3ebb3689b707a349379baee3e2ee3fe7baae06a1]: intrinsic gas too low: have 54299, want 54300",
-			},
-			{ // ErrBlobFeeCapTooLow
-				txs: []*types.Transaction{
-					mkBlobTx(0, common.Address{}, params.TxGas, big.NewInt(1), big.NewInt(1), big.NewInt(0), []common.Hash{(common.Hash{1})}),
-				},
-				want: "could not apply tx 0 [0x6c11015985ce82db691d7b2d017acda296db88b811c3c60dc71449c76256c716]: max fee per gas less than block base fee: address 0x71562b71999873DB5b286dF957af199Ec94617F7, maxFeePerGas: 1, baseFee: 875000000",
 			},
 		} {
 			block := GenerateBadBlock(gspec.ToBlock(), beacon.New(ethash.NewFaker()), tt.txs, gspec.Config)

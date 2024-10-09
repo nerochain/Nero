@@ -18,6 +18,7 @@ package tests
 
 import (
 	"math/rand"
+	"strings"
 	"testing"
 
 	"github.com/ethereum/go-ethereum/common"
@@ -65,6 +66,9 @@ func TestExecutionSpecBlocktests(t *testing.T) {
 	bt := new(testMatcher)
 
 	bt.walk(t, executionSpecBlockchainTestDir, func(t *testing.T, name string, test *BlockTest) {
+		if strings.Contains(name, "blob") || strings.Contains(name, "withdraw") || strings.Contains(name, "beacon") {
+			t.Skip("blob/withdraw tx or beacon related features are not supported")
+		}
 		execBlockTest(t, bt, test)
 	})
 }

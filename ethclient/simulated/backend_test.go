@@ -73,6 +73,10 @@ func TestNewBackend(t *testing.T) {
 	sim := NewBackend(types.GenesisAlloc{})
 	defer sim.Close()
 
+	if sim.beacon != nil {
+		t.Skip("beacon is not supported")
+	}
+
 	client := sim.Client()
 	num, err := client.BlockNumber(context.Background())
 	if err != nil {
@@ -95,7 +99,9 @@ func TestNewBackend(t *testing.T) {
 func TestAdjustTime(t *testing.T) {
 	sim := NewBackend(types.GenesisAlloc{})
 	defer sim.Close()
-
+	if sim.beacon != nil {
+		t.Skip("beacon is not supported")
+	}
 	client := sim.Client()
 	block1, _ := client.BlockByNumber(context.Background(), nil)
 
@@ -114,7 +120,9 @@ func TestAdjustTime(t *testing.T) {
 func TestSendTransaction(t *testing.T) {
 	sim := simTestBackend(testAddr)
 	defer sim.Close()
-
+	if sim.beacon != nil {
+		t.Skip("beacon is not supported")
+	}
 	client := sim.Client()
 	ctx := context.Background()
 
@@ -153,7 +161,9 @@ func TestFork(t *testing.T) {
 	testAddr := crypto.PubkeyToAddress(testKey.PublicKey)
 	sim := simTestBackend(testAddr)
 	defer sim.Close()
-
+	if sim.beacon != nil {
+		t.Skip("beacon is not supported")
+	}
 	client := sim.Client()
 	ctx := context.Background()
 
@@ -201,7 +211,9 @@ func TestForkResendTx(t *testing.T) {
 	testAddr := crypto.PubkeyToAddress(testKey.PublicKey)
 	sim := simTestBackend(testAddr)
 	defer sim.Close()
-
+	if sim.beacon != nil {
+		t.Skip("beacon is not supported")
+	}
 	client := sim.Client()
 	ctx := context.Background()
 
@@ -244,7 +256,9 @@ func TestCommitReturnValue(t *testing.T) {
 	testAddr := crypto.PubkeyToAddress(testKey.PublicKey)
 	sim := simTestBackend(testAddr)
 	defer sim.Close()
-
+	if sim.beacon != nil {
+		t.Skip("beacon is not supported")
+	}
 	client := sim.Client()
 	ctx := context.Background()
 
@@ -289,7 +303,9 @@ func TestAdjustTimeAfterFork(t *testing.T) {
 	testAddr := crypto.PubkeyToAddress(testKey.PublicKey)
 	sim := simTestBackend(testAddr)
 	defer sim.Close()
-
+	if sim.beacon != nil {
+		t.Skip("beacon is not supported")
+	}
 	client := sim.Client()
 	ctx := context.Background()
 

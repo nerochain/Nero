@@ -19,6 +19,7 @@ import (
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/core/vm"
 	"github.com/ethereum/go-ethereum/rpc"
+	"github.com/ethereum/go-ethereum/triedb"
 	"github.com/holiman/uint256"
 	"github.com/stretchr/testify/assert"
 )
@@ -52,19 +53,34 @@ const testAbi = `[
 	  },
 	  {
 		"inputs": [
-		  {
+		{
 			"internalType": "address",
 			"name": "",
 			"type": "address"
-		  }
+		}
 		],
-		"name": "valMaps",
+		"name": "valInfos",
 		"outputs": [
-		  {
-			"internalType": "contract IValidator",
-			"name": "",
-			"type": "address"
-		  }
+		{
+			"internalType": "uint256",
+			"name": "stake",
+			"type": "uint256"
+		},
+		{
+			"internalType": "uint256",
+			"name": "debt",
+			"type": "uint256"
+		},
+		{
+			"internalType": "uint256",
+			"name": "incomeFees",
+			"type": "uint256"
+		},
+		{
+			"internalType": "uint256",
+			"name": "unWithdrawn",
+			"type": "uint256"
+		}
 		],
 		"stateMutability": "view",
 		"type": "function"
@@ -265,11 +281,9 @@ func TestDistributeBlockFee(t *testing.T) {
 	assert.NoError(t, err, "Init call context error")
 
 	getValidatorFee := func(val common.Address) *big.Int {
-		contract, ok := readSystemContract(t, ctx, "valMaps", val).(common.Address)
-		assert.True(t, ok, "invalid contract format")
-		fee, ok := readContract(t, ctx, &contract, "currFeeRewards").(*big.Int)
-		assert.True(t, ok, "invalid fee format")
-		return fee
+		valInfoFields := readSystemContract(t, ctx, "valInfos", val).([]interface{})
+		incomeFees := valInfoFields[2].(*big.Int)
+		return incomeFees
 	}
 
 	assert.NoError(t, UpdateActiveValidatorSet(ctx, GenesisValidators))
@@ -279,9 +293,9 @@ func TestDistributeBlockFee(t *testing.T) {
 
 	assert.NoError(t, DistributeBlockFee(ctx, fee))
 
-	assert.Equal(t, new(uint256.Int).Sub(origin, fee), ctx.Statedb.GetBalance(ctx.Header.Coinbase))
+	assert.Equal(t, new(uint256.Int).Sub(origin, fee), ctx.Statedb.GetBalance(system.EngineCaller))
 
-	valAmount := big.NewInt(fee.ToBig().Int64() / 5 * 4 / 2)
+	valAmount := big.NewInt(fee.ToBig().Int64() / 2)
 	assert.Equal(t, valAmount, getValidatorFee(GenesisValidators[0]))
 	assert.Equal(t, valAmount, getValidatorFee(GenesisValidators[1]))
 }
@@ -332,7 +346,7 @@ func TestDoubleSignPunishGivenEVM(t *testing.T) {
 	blockContext := core.NewEVMBlockContext(ctx.Header, ctx.ChainContext, nil)
 	evm := vm.NewEVM(blockContext, vm.TxContext{}, ctx.Statedb, ctx.ChainConfig, vm.Config{})
 
-	assert.NoError(t, DoubleSignPunishWithGivenEVM(evm, ctx.Header.Coinbase, punishHash, GenesisValidators[0]))
+	assert.NoError(t, DoubleSignPunishWithGivenEVM(evm, system.EngineCaller, punishHash, GenesisValidators[0]))
 
 	punished, err = IsDoubleSignPunished(ctx, punishHash)
 	assert.NoError(t, err)
@@ -366,8 +380,12 @@ func initCallContext() (*contracts.CallContext, error) {
 	}
 
 	db := rawdb.NewMemoryDatabase()
-
-	genesisBlock := genesis.ToBlock()
+	triedb := triedb.NewDatabase(db, triedb.HashDefaults)
+	defer triedb.Close()
+	genesisBlock, err := genesis.Commit(db, triedb)
+	if err != nil {
+		return nil, err
+	}
 
 	header := &types.Header{
 		ParentHash: genesisBlock.Hash(),
@@ -378,7 +396,7 @@ func initCallContext() (*contracts.CallContext, error) {
 	}
 
 	var statedb *state.StateDB
-	if statedb, err = state.New(genesisBlock.Root(), state.NewDatabase(db), nil); err != nil {
+	if statedb, err = state.New(genesisBlock.Root(), state.NewDatabaseWithNodeDB(db, triedb), nil); err != nil {
 		return nil, err
 	}
 
@@ -408,8 +426,11 @@ func readContract(t *testing.T, ctx *contracts.CallContext, contract *common.Add
 	// unpack data
 	ret, err := abi.Unpack(method, result)
 	assert.NoError(t, err)
-	assert.Equal(t, 1, len(ret), "invalid result length")
-	return ret[0]
+	if len(ret) == 1 {
+		return ret[0]
+	} else {
+		return ret
+	}
 }
 
 // MockChainContext implements ChainContext for unit test

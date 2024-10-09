@@ -60,7 +60,7 @@ func (h *testEthHandler) Handle(peer *eth.Peer, packet eth.Packet) error {
 		return nil
 
 	case *eth.NewPooledTransactionHashesPacket:
-		h.txAnnounces.Send(packet)
+		h.txAnnounces.Send([]common.Hash(*packet))
 		return nil
 
 	case *eth.TransactionsPacket:
@@ -345,7 +345,7 @@ func testSendTransactions(t *testing.T, protocol uint) {
 	seen := make(map[common.Hash]struct{})
 	for len(seen) < len(insert) {
 		switch protocol {
-		case 68:
+		case 66:
 			select {
 			case hashes := <-anns:
 				for _, hash := range hashes {
