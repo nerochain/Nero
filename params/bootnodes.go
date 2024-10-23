@@ -20,7 +20,11 @@ import "github.com/ethereum/go-ethereum/common"
 
 // MainnetBootnodes are the enode URLs of the P2P bootstrap nodes running on
 // the main Nero network.
-var MainnetBootnodes = []string{}
+var MainnetBootnodes = []string{
+	"enode://7cf89853f348831e84b48dd81d3242cb2c410bd94d9f5ed15c4a3b22b60790317ffaedbbddf86ab58b215dec12fc315327d60f51f6fc5c9698815bf41f196251@34.85.119.231:30306",
+	"enode://7317318d3bffaf9b5fc0b413a06987ed497efa349484a1bd10bb80aa96ecf7a29b510e486bc968187339229cae3757abd64ef42a67f51fb4b72571b6b8aab3f8@34.146.179.136:30306",
+	"enode://2340318298e056141221ef47b45ecdfdb9d92deb32e9777a937ab8694bc37539f31acdde47184ab95a0e57ef99e3a00a422d79e0e6dea13d913c469b477c8166@34.146.62.154:30306",
+}
 
 // TestnetBootnodes are the enode URLs of the P2P bootstrap nodes running on the Testnet
 var TestnetBootnodes = []string{
