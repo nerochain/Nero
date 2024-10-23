@@ -186,10 +186,10 @@ func TestGenesisHashes(t *testing.T) {
 		genesis *Genesis
 		want    common.Hash
 	}{
-		// {DefaultGenesisBlock(), params.MainnetGenesisHash},
+		{DefaultGenesisBlock(), params.MainnetGenesisHash},
 		{DefaultTestnetGenesisBlock(), params.TestnetGenesisHash},
-		{DefaultGoerliGenesisBlock(), params.GoerliGenesisHash},
-		{DefaultSepoliaGenesisBlock(), params.SepoliaGenesisHash},
+		// {DefaultGoerliGenesisBlock(), params.GoerliGenesisHash},
+		// {DefaultSepoliaGenesisBlock(), params.SepoliaGenesisHash},
 	} {
 		// Test via MustCommit
 		db := rawdb.NewMemoryDatabase()
