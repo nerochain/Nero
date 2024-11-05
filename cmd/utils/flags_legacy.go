@@ -82,7 +82,7 @@ var (
 	// Deprecated August 2023
 	TxLookupLimitFlag = &cli.Uint64Flag{
 		Name:     "txlookuplimit",
-		Usage:    "Number of recent blocks to maintain transactions index for (default = about one year, 0 = entire chain) (deprecated, use history.transactions instead)",
+		Usage:    "Number of recent blocks to maintain transactions index for (default = 0, entire chain) (deprecated, use history.transactions instead)",
 		Value:    ethconfig.Defaults.TransactionHistory,
 		Category: flags.DeprecatedCategory,
 	}
