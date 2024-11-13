@@ -26,7 +26,7 @@ import (
 
 // Genesis hashes to enforce below configs on.
 var (
-	MainnetGenesisHash = common.HexToHash("0x822ca6a1c9cf18da743704cee0dec21d8de1a46ceb6aba1cc5308c348b11ab34")
+	MainnetGenesisHash = common.HexToHash("0xa66651f9f4e4c953cf42d5785b40b961307a391c136546d98bb954e235d44743")
 	TestnetGenesisHash = common.HexToHash("0xd11ecddec837079c238df872a0f9097b436f8daa22f0237f90bf1907fb5c1503")
 	HoleskyGenesisHash = common.HexToHash("0xb5f7f912443c940f21fd611f12828d75b534364ed9e95ca4e307729a4661bde4")
 	SepoliaGenesisHash = common.HexToHash("0x25a5cc106eea7138acab33231d7160d69cb777ee0c2c553fcddf5138993e6dd9")
@@ -41,8 +41,6 @@ var (
 	MainnetChainConfig = &ChainConfig{
 		ChainID:             big.NewInt(1689),
 		HomesteadBlock:      big.NewInt(0),
-		DAOForkBlock:        big.NewInt(0),
-		DAOForkSupport:      true,
 		EIP150Block:         big.NewInt(0),
 		EIP155Block:         big.NewInt(0),
 		EIP158Block:         big.NewInt(0),
@@ -50,7 +48,6 @@ var (
 		ConstantinopleBlock: big.NewInt(0),
 		PetersburgBlock:     big.NewInt(0),
 		IstanbulBlock:       big.NewInt(0),
-		MuirGlacierBlock:    nil,
 		BerlinBlock:         big.NewInt(0),
 		LondonBlock:         big.NewInt(0),
 		ShanghaiTime:        newUint64(0),
