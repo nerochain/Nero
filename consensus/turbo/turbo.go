@@ -36,12 +36,10 @@ const (
 	checkpointInterval = 1024 // Number of blocks after which to save the vote snapshot to the database
 	inmemorySnapshots  = 128  // Number of recent vote snapshots to keep in memory
 	inmemorySignatures = 4096 // Number of recent block signatures to keep in memory
-	inmemoryAccesslist = 21   // Number of recent accesslist snapshots to keep in memory
+	inmemoryAccesslist = 25   // Number of recent accesslist snapshots to keep in memory
 
 	wiggleTime        = 500 * time.Millisecond // Random delay (per validator) to allow concurrent validators
 	minNotInTurnDelay = 100 * time.Millisecond // Minimal delay for a not-in-turn validator to seal a block
-	maxValidators     = 21                     // Max validators allowed to seal.
-	blocksPerDay      = 60 * 60 * 24 / 3       // blocks produced per day
 )
 
 // Turbo proof-of-stake-authority protocol constants.

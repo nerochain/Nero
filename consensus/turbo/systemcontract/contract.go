@@ -16,7 +16,7 @@ import (
 	"github.com/holiman/uint256"
 )
 
-const TopValidatorNum uint8 = 21
+const TopValidatorNum uint8 = 25
 
 // AddrAscend implements the sort interface to allow sorting a list of addresses
 type AddrAscend []common.Address

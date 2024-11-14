@@ -18,10 +18,10 @@ import (
 
 const (
 	maxGapForOldOrFutureAttestation = 16
-	maxFutureAttestations           = maxGapForOldOrFutureAttestation * 21
+	maxFutureAttestations           = maxGapForOldOrFutureAttestation * 25
 	attestationsCacheLimit          = 1024
 	historyAttessCacheLimit         = 64
-	casperFFGHistoryCacheLimit      = 21 * 3
+	casperFFGHistoryCacheLimit      = 25 * 3
 	blockStatusCacheLimit           = 1024
 
 	casperFFGHistoryCacheToKeep = 100
