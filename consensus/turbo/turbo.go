@@ -928,7 +928,9 @@ func encodeSigHeader(w io.Writer, header *types.Header) {
 
 // PreHandle handles before tx execution in miner
 func (c *Turbo) PreHandle(chain consensus.ChainHeaderReader, header *types.Header, state *state.StateDB) error {
-	for _, hardfork := range []systemcontract.Hardfork{} {
+	for _, hardfork := range []systemcontract.Hardfork{
+		{Name: systemcontract.Vulcan, Number: c.chainConfig.VulcanBlock},
+	} {
 		if hardfork.Number != nil && hardfork.Number.Cmp(header.Number) == 0 {
 			if err := systemcontract.ApplySystemContractUpgrade(hardfork.Name, state, header,
 				newChainContext(chain, c), c.chainConfig); err != nil {
