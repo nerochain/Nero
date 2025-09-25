@@ -10,8 +10,13 @@ import (
 	"github.com/ethereum/go-ethereum/params"
 )
 
+const (
+	Vulcan = "vulcan"
+)
+
 var hardforkContracts map[string][]IUpgradeAction = map[string][]IUpgradeAction{
 	// Add forks here
+	Vulcan: VulcanHardFork(),
 }
 
 // IUpgradeAction is the interface for system contracts upgrades
