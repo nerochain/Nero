@@ -50,6 +50,7 @@ var (
 		IstanbulBlock:       big.NewInt(0),
 		BerlinBlock:         big.NewInt(0),
 		LondonBlock:         big.NewInt(0),
+		VulcanBlock:         big.NewInt(0), // TODO: Determine the block number for the consensus upgrade
 		ShanghaiTime:        newUint64(0),
 		CancunTime:          newUint64(0),
 		Turbo: &TurboConfig{
@@ -71,7 +72,7 @@ var (
 		IstanbulBlock:       big.NewInt(0),
 		BerlinBlock:         big.NewInt(0),
 		LondonBlock:         big.NewInt(0),
-		VulcanBlock:         big.NewInt(0), // TODO: Determine the block number for the consensus upgrade
+		VulcanBlock:         big.NewInt(10244179), // 2025-11-05 02:00:00 (+UTC)
 		ShanghaiTime:        newUint64(0),
 		CancunTime:          newUint64(0),
 		Turbo: &TurboConfig{
