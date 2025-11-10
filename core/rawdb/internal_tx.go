@@ -16,16 +16,16 @@ func ReadInternalTxsRLP(db ethdb.Reader, hash common.Hash, number uint64) rlp.Ra
 		// if isCanon(reader, number, hash) {
 		// 	data, _ = reader.Ancient(ChainFreezerInternalTxTable, number)
 		// 	if data != nil {
-		// 		log.Debug("traceaction read from ancientdb, number", number, " len ", len(data))
-		// 		return nil
-		// 	}
+				// 	log.Debug("traceaction read from ancientdb, number", number, " len ", len(data))
+				// 	return nil
+				// }
 		// }
 		// // If not, try reading from leveldb
 		data, _ = db.Get(blockInternalTxsKey(number, hash))
 		if data == nil {
-			log.Debug("traceaction read from fastdb, number", number, " len nil")
+			log.Debug("traceaction read from fastdb, number", "number", number, "len", "nil")
 		} else {
-			log.Debug("traceaction read from fastdb, number", number, " len ", len(data))
+			log.Debug("traceaction read from fastdb, number", "number", number, "len", len(data))
 		}
 		return nil
 	})
@@ -68,7 +68,7 @@ func WriteInternalTxs(db ethdb.KeyValueWriter, hash common.Hash, number uint64, 
 
 // DeleteInternalTxs removes all internal transactions associated with a block hash.
 func DeleteInternalTxs(db ethdb.KeyValueWriter, hash common.Hash, number uint64) {
-	log.Debug("traceaction DeleteInternalTxs", hash.String(), "  ", number)
+	log.Debug("traceaction DeleteInternalTxs", "hash", hash.String(), "number", number)
 	if err := db.Delete(blockInternalTxsKey(number, hash)); err != nil {
 		log.Crit("Failed to delete block internal txs", "err", err)
 	}
