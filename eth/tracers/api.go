@@ -1248,37 +1248,59 @@ func (api *API) TraceActionByBlockNumber(ctx context.Context, number rpc.BlockNu
 
 // TraceActionByBlockNumber return actions of internal txs by tx hash
 func (api *API) TraceActionByTxHash(ctx context.Context, hash common.Hash, filter *types.ActionConfig) (*types.InternalTx, error) {
+	log.Debug("traceaction TraceActionByTxHash called", "hash", hash.String())
 	_, tx, blkHash, _, _, err := api.backend.GetTransaction(ctx, hash)
 	if err != nil {
+		log.Warn("traceaction GetTransaction failed", "hash", hash.String(), "err", err)
 		return nil, err
 	}
 
 	if tx == nil {
+		log.Warn("traceaction transaction not found", "hash", hash.String())
 		return nil, fmt.Errorf("tx #%s not found", hash)
 	}
 
 	block, err := api.backend.BlockByHash(ctx, blkHash)
 	if err != nil {
+		log.Warn("traceaction BlockByHash failed", "blockHash", blkHash.String(), "err", err)
 		return nil, err
 	}
 
 	// Trace the block if it was found
 	if block == nil {
+		log.Warn("traceaction block not found", "blockHash", blkHash.String())
 		return nil, fmt.Errorf("block #%s not found", hash)
 	}
 
 	txs, err := api.getInnerTx(block)
 	if err != nil {
+		log.Warn("traceaction getInnerTx failed", "blockNumber", block.NumberU64(), "err", err)
 		return nil, err
 	}
 
 	for _, t := range txs {
 		if t.TxHash == hash {
+			log.Debug("traceaction found matching tx", "txHash", hash.String(), "actionsCount", len(t.Actions))
+			// Add defensive check to filter out actions with invalid depth
+			if len(t.Actions) > 0 {
+				validActions := make([]*types.Action, 0, len(t.Actions))
+				for _, action := range t.Actions {
+					// Check if depth is the maximum uint64 value, skip this action if so
+					if action.Depth == ^uint64(0) {
+						log.Warn("traceaction skipping action with invalid depth", "txHash", hash.String(), "depth", action.Depth)
+						continue
+					}
+					validActions = append(validActions, action)
+				}
+				t.Actions = validActions
+			}
+			// Apply filter
 			t.Actions = api.filterAction(t.Actions, filter)
 			return t, nil
 		}
 	}
 
+	log.Debug("traceaction no matching internal tx found", "hash", hash.String())
 	return nil, nil
 }
 
@@ -1314,7 +1336,21 @@ func (api *API) filterAction(actions []*types.Action, filter *types.ActionConfig
 
 // getInnerTx returns internal txs
 func (api *API) getInnerTx(block *types.Block) (types.InternalTxs, error) {
+	log.Debug("traceaction getInnerTx", "blockNumber", block.NumberU64(), "blockHash", block.Hash().String())
 	txs := rawdb.ReadInternalTxs(api.backend.ChainDb(), block.Hash(), block.NumberU64())
+	log.Debug("traceaction getInnerTx read", "count", len(txs))
+
+	// Add logging for depth values
+	for i, tx := range txs {
+		log.Debug("traceaction getInnerTx tx", "index", i, "txHash", tx.TxHash.String(), "actionsCount", len(tx.Actions))
+		for j, action := range tx.Actions {
+			log.Debug("traceaction getInnerTx action", "actionIndex", j, "depth", action.Depth, "opcode", action.OpCode)
+			// Check if depth value is the maximum uint64 value
+			if action.Depth == ^uint64(0) {
+				log.Warn("traceaction getInnerTx found invalid depth", "txHash", tx.TxHash.String(), "actionIndex", j, "depth", action.Depth)
+			}
+		}
+	}
 
 	for _, tx := range txs {
 		tx.BlockHash = block.Hash()
