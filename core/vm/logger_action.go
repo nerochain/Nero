@@ -35,7 +35,7 @@ func (t *ActionLogger) Hooks() *tracing.Hooks {
 
 func (t *ActionLogger) OnEnter(depth int, typ byte, from common.Address, to common.Address, input []byte, gas uint64, value *big.Int) {
 	log.Debug("ActionLogger.OnEnter", "depth", depth, "type", OpCode(typ), "from", from, "to", to)
-	
+
 	if depth == 0 && (typ == byte(CALL) || typ == byte(CREATE) || typ == byte(CREATE2)) {
 		log.Debug("ActionLogger.OnEnter: Main call", "depth", depth, "type", OpCode(typ))
 		t.callstack[0] = types.ActionFrame{
@@ -91,13 +91,13 @@ func (t *ActionLogger) OnEnter(depth int, typ byte, from common.Address, to comm
 
 func (t *ActionLogger) OnExit(depth int, output []byte, gasUsed uint64, err error, reverted bool) {
 	log.Debug("ActionLogger.OnExit", "depth", depth, "err", err, "reverted", reverted)
-	
+
 	// Ensure callstack is not empty, this is the first layer of safety check
 	if len(t.callstack) == 0 {
 		log.Warn("ActionLogger.OnExit: callstack is empty, initializing")
 		t.callstack = append(t.callstack, types.ActionFrame{})
 	}
-	
+
 	if depth == 0 {
 		log.Debug("ActionLogger.OnExit: Main call exit", "depth", depth)
 		// Handle all calls with depth 0 uniformly, including CALL, CREATE and CREATE2
@@ -143,7 +143,7 @@ func (t *ActionLogger) OnExit(depth int, output []byte, gasUsed uint64, err erro
 		}
 		call.Depth = uint64(depth) // Ensure correct depth value is set
 		log.Debug("ActionLogger.OnExit: Setting call depth", "call_depth", call.Depth)
-		
+
 		t.callstack = t.callstack[:size-1]
 		size -= 1
 
