@@ -1266,6 +1266,9 @@ func doCall(ctx context.Context, b Backend, args TransactionArgs, state *state.S
 	}
 	msg := args.ToMessage(blockCtx.BaseFee)
 	evm := b.GetEVM(ctx, msg, state, header, &vm.Config{NoBaseFee: true}, &blockCtx)
+	if evm == nil {
+		return nil, errors.New("failed to create EVM instance")
+	}
 
 	// Wait for the context to be done and cancel the evm. Even if the
 	// EVM has finished, cancelling may be done (repeatedly)
