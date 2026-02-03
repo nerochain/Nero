@@ -72,7 +72,7 @@ var (
 		IstanbulBlock:       big.NewInt(0),
 		BerlinBlock:         big.NewInt(0),
 		LondonBlock:         big.NewInt(0),
-		VulcanBlock:         big.NewInt(14403785), // 2026-02-04 06:00:00 (+UTC)
+		VulcanBlock:         big.NewInt(11778359), // 2025-11-05 02:00:00 (+UTC)
 		ShanghaiTime:        newUint64(0),
 		CancunTime:          newUint64(0),
 		Turbo: &TurboConfig{
