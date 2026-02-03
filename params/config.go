@@ -51,6 +51,7 @@ var (
 		BerlinBlock:         big.NewInt(0),
 		LondonBlock:         big.NewInt(0),
 		VulcanBlock:         big.NewInt(0), // TODO: Determine the block number for the consensus upgrade
+		VulcanBlockV2:       big.NewInt(0),
 		ShanghaiTime:        newUint64(0),
 		CancunTime:          newUint64(0),
 		Turbo: &TurboConfig{
@@ -73,6 +74,7 @@ var (
 		BerlinBlock:         big.NewInt(0),
 		LondonBlock:         big.NewInt(0),
 		VulcanBlock:         big.NewInt(11778359), // 2025-11-05 02:00:00 (+UTC)
+		VulcanBlockV2:       big.NewInt(14403785), // 2026-02-04 06:00:00 (+UTC)
 		ShanghaiTime:        newUint64(0),
 		CancunTime:          newUint64(0),
 		Turbo: &TurboConfig{
@@ -399,6 +401,7 @@ type ChainConfig struct {
 	GrayGlacierBlock    *big.Int `json:"grayGlacierBlock,omitempty"`    // Eip-5133 (bomb delay) switch block (nil = no fork, 0 = already activated)
 	MergeNetsplitBlock  *big.Int `json:"mergeNetsplitBlock,omitempty"`  // Virtual fork after The Merge to use as a network splitter
 	VulcanBlock         *big.Int `json:"vulcanBlock,omitempty"`         //
+	VulcanBlockV2       *big.Int `json:"vulcanBlockV2,omitempty"`       //
 
 	// Fork scheduling was switched from blocks to timestamps here
 
@@ -521,6 +524,9 @@ func (c *ChainConfig) Description() string {
 	if c.VulcanBlock != nil {
 		banner += fmt.Sprintf(" - Vulcan:             #%-8v\n", c.VulcanBlock)
 	}
+	if c.VulcanBlockV2 != nil {
+		banner += fmt.Sprintf(" - VulcanV2:           #%-8v\n", c.VulcanBlockV2)
+	}
 	banner += "\n"
 
 	// Add a special section for the merge as it's non-obvious
@@ -629,6 +635,9 @@ func (c *ChainConfig) IsGrayGlacier(num *big.Int) bool {
 
 // IsVulcan returns whether num is either equal to the Vulcan fork block or greater.
 func (c *ChainConfig) IsVulcan(num *big.Int) bool { return isBlockForked(c.VulcanBlock, num) }
+
+// IsVulcanV2 returns whether num is either equal to the VulcanV2 fork block or greater.
+func (c *ChainConfig) IsVulcanV2(num *big.Int) bool { return isBlockForked(c.VulcanBlockV2, num) }
 
 // IsTerminalPoWBlock returns whether the given block is the last block of PoW stage.
 func (c *ChainConfig) IsTerminalPoWBlock(parentTotalDiff *big.Int, totalDiff *big.Int) bool {
@@ -814,6 +823,9 @@ func (c *ChainConfig) checkCompatible(newcfg *ChainConfig, headNumber *big.Int, 
 	}
 	if isForkBlockIncompatible(c.VulcanBlock, newcfg.VulcanBlock, headNumber) {
 		return newBlockCompatError("Vulcan fork block", c.VulcanBlock, newcfg.VulcanBlock)
+	}
+	if isForkBlockIncompatible(c.VulcanBlockV2, newcfg.VulcanBlockV2, headNumber) {
+		return newBlockCompatError("VulcanV2 fork block", c.VulcanBlockV2, newcfg.VulcanBlockV2)
 	}
 	if isForkTimestampIncompatible(c.ShanghaiTime, newcfg.ShanghaiTime, headTimestamp) {
 		return newTimestampCompatError("Shanghai fork timestamp", c.ShanghaiTime, newcfg.ShanghaiTime)

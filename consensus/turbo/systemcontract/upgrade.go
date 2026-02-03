@@ -11,12 +11,14 @@ import (
 )
 
 const (
-	Vulcan = "vulcan"
+	Vulcan    = "vulcan"
+	VulcanV2  = "vulcanv2"
 )
 
 var hardforkContracts map[string][]IUpgradeAction = map[string][]IUpgradeAction{
 	// Add forks here
-	Vulcan: VulcanHardFork(),
+	Vulcan:   VulcanHardFork(),
+	VulcanV2: VulcanV2HardFork(),
 }
 
 // IUpgradeAction is the interface for system contracts upgrades
