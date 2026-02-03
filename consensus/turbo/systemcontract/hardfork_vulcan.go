@@ -30,3 +30,23 @@ func (s *StakingV2) DoUpdate(state *state.StateDB, header *types.Header, chainCo
 	log.Debug("Write code to system contract account", "addr", system.StakingContract, "code", system.StakingV2Code)
 	return
 }
+
+func VulcanV2HardFork() []IUpgradeAction {
+	return []IUpgradeAction{
+		&StakingV3{},
+	}
+}
+
+type StakingV3 struct {
+}
+
+func (s *StakingV3) GetName() string {
+	return "StakingV3"
+}
+
+func (s *StakingV3) DoUpdate(state *state.StateDB, header *types.Header, chainContext core.ChainContext, config *params.ChainConfig) (err error) {
+	contractCode := common.FromHex(system.StakingV3Code)
+	state.SetCode(system.StakingContract, contractCode)
+	log.Debug("Write code to system contract account", "addr", system.StakingContract, "code", system.StakingV3Code)
+	return
+}
