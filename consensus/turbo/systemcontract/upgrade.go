@@ -11,8 +11,8 @@ import (
 )
 
 const (
-	Vulcan    = "vulcan"
-	VulcanV2  = "vulcanv2"
+	Vulcan   = "vulcan"
+	VulcanV2 = "vulcanv2"
 )
 
 var hardforkContracts map[string][]IUpgradeAction = map[string][]IUpgradeAction{
