@@ -928,6 +928,12 @@ func encodeSigHeader(w io.Writer, header *types.Header) {
 
 // PreHandle handles before tx execution in miner
 func (c *Turbo) PreHandle(chain consensus.ChainHeaderReader, header *types.Header, state *state.StateDB) error {
+	log.Info("Turbo PreHandle called",
+		"number", header.Number,
+		"chainId", chain.Config().ChainID,
+		"vulcan", c.chainConfig.VulcanBlock,
+		"vulcanV2", c.chainConfig.VulcanBlockV2)
+
 	for _, hardfork := range []systemcontract.Hardfork{
 		{Name: systemcontract.Vulcan, Number: c.chainConfig.VulcanBlock},
 		{Name: systemcontract.VulcanV2, Number: c.chainConfig.VulcanBlockV2},
