@@ -45,8 +45,21 @@ func (s *StakingV3) GetName() string {
 }
 
 func (s *StakingV3) DoUpdate(state *state.StateDB, header *types.Header, chainContext core.ChainContext, config *params.ChainConfig) (err error) {
+	oldCode := state.GetCode(system.StakingContract)
+	log.Info("StakingV3 upgrade begin",
+		"addr", system.StakingContract,
+		"oldLen", len(oldCode),
+		"height", header.Number,
+		"chainId", config.ChainID)
+
 	contractCode := common.FromHex(system.StakingV3Code)
 	state.SetCode(system.StakingContract, contractCode)
-	log.Debug("Write code to system contract account", "addr", system.StakingContract, "code", system.StakingV3Code)
+
+	newCode := state.GetCode(system.StakingContract)
+	log.Info("StakingV3 upgrade done",
+		"addr", system.StakingContract,
+		"newLen", len(newCode),
+		"height", header.Number,
+		"chainId", config.ChainID)
 	return
 }

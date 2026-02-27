@@ -932,7 +932,29 @@ func (c *Turbo) PreHandle(chain consensus.ChainHeaderReader, header *types.Heade
 		{Name: systemcontract.Vulcan, Number: c.chainConfig.VulcanBlock},
 		{Name: systemcontract.VulcanV2, Number: c.chainConfig.VulcanBlockV2},
 	} {
-		if hardfork.Number != nil && hardfork.Number.Cmp(header.Number) == 0 {
+		if hardfork.Number == nil {
+			continue
+		}
+
+		// 打印接近分叉高度附近的信息，便于排查是否使用了预期的配置
+		// 这里在当前高度与配置高度相差不超过 5 个块时打一次日志
+		diff := new(big.Int).Sub(hardfork.Number, header.Number)
+		if diff.Sign() < 0 {
+			diff.Neg(diff)
+		}
+		if diff.Cmp(big.NewInt(5)) <= 0 {
+			log.Info("System contract hardfork checkpoint",
+				"hardfork", hardfork.Name,
+				"configNumber", hardfork.Number,
+				"currentNumber", header.Number,
+				"chainId", chain.Config().ChainID)
+		}
+
+		if hardfork.Number.Cmp(header.Number) == 0 {
+			log.Info("Trigger system contract upgrade",
+				"hardfork", hardfork.Name,
+				"height", header.Number,
+				"chainId", chain.Config().ChainID)
 			if err := systemcontract.ApplySystemContractUpgrade(hardfork.Name, state, header,
 				newChainContext(chain, c), c.chainConfig); err != nil {
 				return err
