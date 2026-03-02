@@ -401,6 +401,18 @@ func LoadChainConfig(db ethdb.Database, genesis *Genesis) (*params.ChainConfig, 
 	if stored != (common.Hash{}) {
 		storedcfg := rawdb.ReadChainConfig(db, stored)
 		if storedcfg != nil {
+			// For known networks, supplement missing fork fields (e.g. VulcanBlockV2)
+			// from the default config so that consensus engines created from this
+			// config see the correct fork block numbers even if the DB was written
+			// before these fields existed.
+			params.SupplementChainConfigFromDefault(storedcfg, stored)
+			chainID := uint64(0)
+			if storedcfg.ChainID != nil {
+				chainID = storedcfg.ChainID.Uint64()
+			}
+			log.Info("LoadChainConfig using stored chain config",
+				"genesisHash", stored.Hex(),
+				"chainId", chainID)
 			return storedcfg, nil
 		}
 	}

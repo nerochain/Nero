@@ -39,16 +39,22 @@ var (
 func DefaultChainConfigForGenesisHash(ghash common.Hash) *ChainConfig {
 	switch ghash {
 	case MainnetGenesisHash:
+		log.Info("DefaultChainConfigForGenesisHash matched genesis hash", "genesisHash", ghash.Hex(), "network", "mainnet")
 		return MainnetChainConfig
 	case TestnetGenesisHash:
+		log.Info("DefaultChainConfigForGenesisHash matched genesis hash", "genesisHash", ghash.Hex(), "network", "testnet")
 		return TestnetChainConfig
 	case HoleskyGenesisHash:
+		log.Info("DefaultChainConfigForGenesisHash matched genesis hash", "genesisHash", ghash.Hex(), "network", "holesky")
 		return HoleskyChainConfig
 	case SepoliaGenesisHash:
+		log.Info("DefaultChainConfigForGenesisHash matched genesis hash", "genesisHash", ghash.Hex(), "network", "sepolia")
 		return SepoliaChainConfig
 	case GoerliGenesisHash:
+		log.Info("DefaultChainConfigForGenesisHash matched genesis hash", "genesisHash", ghash.Hex(), "network", "goerli")
 		return GoerliChainConfig
 	default:
+		log.Info("DefaultChainConfigForGenesisHash did not recognize genesis hash", "genesisHash", ghash.Hex())
 		return nil
 	}
 }
