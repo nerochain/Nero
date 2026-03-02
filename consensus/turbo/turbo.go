@@ -942,8 +942,8 @@ func (c *Turbo) PreHandle(chain consensus.ChainHeaderReader, header *types.Heade
 			continue
 		}
 
-		// 打印接近分叉高度附近的信息，便于排查是否使用了预期的配置
-		// 这里在当前高度与配置高度相差不超过 5 个块时打一次日志
+		// Log information near the fork height to help verify that the expected configuration is used.
+		// Here we log once when the difference between the current height and the configured height is at most 5 blocks.
 		diff := new(big.Int).Sub(hardfork.Number, header.Number)
 		if diff.Sign() < 0 {
 			diff.Neg(diff)
