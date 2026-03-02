@@ -367,6 +367,9 @@ func SetupGenesisBlockWithOverride(db ethdb.Database, triedb *triedb.Database, g
 	// apply the overrides.
 	if genesis == nil && stored != params.MainnetGenesisHash {
 		newcfg = storedcfg
+		// Supplement nil fork fields from default config so that nodes initialized
+		// before new fork fields (e.g. VulcanBlockV2) were added get correct values.
+		params.SupplementChainConfigFromDefault(newcfg, stored)
 		applyOverrides(newcfg)
 	}
 	// Check config compatibility and write the config. Compatibility errors
@@ -381,6 +384,8 @@ func SetupGenesisBlockWithOverride(db ethdb.Database, triedb *triedb.Database, g
 	}
 	// Don't overwrite if the old is identical to the new
 	if newData, _ := json.Marshal(newcfg); !bytes.Equal(storedData, newData) {
+		log.Info("Chain config updated and written to DB (e.g. after supplementing missing fork fields)",
+			"genesisHash", stored.Hex())
 		rawdb.WriteChainConfig(db, stored, newcfg)
 	}
 	return newcfg, stored, nil
