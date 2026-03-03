@@ -21,6 +21,7 @@ import (
 	"math/big"
 
 	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/params/forks"
 )
 
@@ -32,6 +33,61 @@ var (
 	SepoliaGenesisHash = common.HexToHash("0x25a5cc106eea7138acab33231d7160d69cb777ee0c2c553fcddf5138993e6dd9")
 	GoerliGenesisHash  = common.HexToHash("0xbf7e331f7f7c1dd2e05159666b3bf8bc7a8a3a9eb1d518969eab529dd9b88c1a")
 )
+
+// DefaultChainConfigForGenesisHash returns the default ChainConfig for a known genesis hash.
+// Returns nil for unknown (e.g. private) networks.
+func DefaultChainConfigForGenesisHash(ghash common.Hash) *ChainConfig {
+	switch ghash {
+	case MainnetGenesisHash:
+		log.Info("DefaultChainConfigForGenesisHash matched genesis hash", "genesisHash", ghash.Hex(), "network", "mainnet")
+		return MainnetChainConfig
+	case TestnetGenesisHash:
+		log.Info("DefaultChainConfigForGenesisHash matched genesis hash", "genesisHash", ghash.Hex(), "network", "testnet")
+		return TestnetChainConfig
+	case HoleskyGenesisHash:
+		log.Info("DefaultChainConfigForGenesisHash matched genesis hash", "genesisHash", ghash.Hex(), "network", "holesky")
+		return HoleskyChainConfig
+	case SepoliaGenesisHash:
+		log.Info("DefaultChainConfigForGenesisHash matched genesis hash", "genesisHash", ghash.Hex(), "network", "sepolia")
+		return SepoliaChainConfig
+	case GoerliGenesisHash:
+		log.Info("DefaultChainConfigForGenesisHash matched genesis hash", "genesisHash", ghash.Hex(), "network", "goerli")
+		return GoerliChainConfig
+	default:
+		log.Info("DefaultChainConfigForGenesisHash did not recognize genesis hash", "genesisHash", ghash.Hex())
+		return nil
+	}
+}
+
+// SupplementChainConfigFromDefault fills in nil fork fields in cfg with values from the default
+// config for the given genesis hash. This allows nodes that were initialized before new fork
+// fields (e.g. VulcanBlockV2) were added to get the correct defaults when loading from DB.
+func SupplementChainConfigFromDefault(cfg *ChainConfig, ghash common.Hash) {
+	if cfg == nil {
+		return
+	}
+	def := DefaultChainConfigForGenesisHash(ghash)
+	if def == nil {
+		return
+	}
+	var supplemented []string
+	if cfg.VulcanBlock == nil && def.VulcanBlock != nil {
+		cfg.VulcanBlock = new(big.Int).Set(def.VulcanBlock)
+		supplemented = append(supplemented, fmt.Sprintf("vulcanBlock=%v", def.VulcanBlock))
+	}
+	if cfg.VulcanBlockV2 == nil && def.VulcanBlockV2 != nil {
+		cfg.VulcanBlockV2 = new(big.Int).Set(def.VulcanBlockV2)
+		supplemented = append(supplemented, fmt.Sprintf("vulcanBlockV2=%v", def.VulcanBlockV2))
+	}
+	if len(supplemented) > 0 {
+		chainID := uint64(0)
+		if cfg.ChainID != nil {
+			chainID = cfg.ChainID.Uint64()
+		}
+		log.Info("Chain config supplemented from default (DB config was missing fork fields)",
+			"chainId", chainID, "genesisHash", ghash.Hex(), "supplemented", supplemented)
+	}
+}
 
 func newUint64(val uint64) *uint64 { return &val }
 
@@ -74,7 +130,7 @@ var (
 		BerlinBlock:         big.NewInt(0),
 		LondonBlock:         big.NewInt(0),
 		VulcanBlock:         big.NewInt(11778359), // 2025-11-05 02:00:00 (+UTC)
-		VulcanBlockV2:       big.NewInt(14403785), // 2026-02-04 06:00:00 (+UTC)
+		VulcanBlockV2:       big.NewInt(15114450), // 2026-03-02 07:41:37 (+UTC)
 		ShanghaiTime:        newUint64(0),
 		CancunTime:          newUint64(0),
 		Turbo: &TurboConfig{

@@ -928,11 +928,39 @@ func encodeSigHeader(w io.Writer, header *types.Header) {
 
 // PreHandle handles before tx execution in miner
 func (c *Turbo) PreHandle(chain consensus.ChainHeaderReader, header *types.Header, state *state.StateDB) error {
+	log.Info("Turbo PreHandle called",
+		"number", header.Number,
+		"chainId", chain.Config().ChainID,
+		"vulcan", c.chainConfig.VulcanBlock,
+		"vulcanV2", c.chainConfig.VulcanBlockV2)
+
 	for _, hardfork := range []systemcontract.Hardfork{
 		{Name: systemcontract.Vulcan, Number: c.chainConfig.VulcanBlock},
 		{Name: systemcontract.VulcanV2, Number: c.chainConfig.VulcanBlockV2},
 	} {
-		if hardfork.Number != nil && hardfork.Number.Cmp(header.Number) == 0 {
+		if hardfork.Number == nil {
+			continue
+		}
+
+		// Log information near the fork height to help verify that the expected configuration is used.
+		// Here we log once when the difference between the current height and the configured height is at most 5 blocks.
+		diff := new(big.Int).Sub(hardfork.Number, header.Number)
+		if diff.Sign() < 0 {
+			diff.Neg(diff)
+		}
+		if diff.Cmp(big.NewInt(5)) <= 0 {
+			log.Info("System contract hardfork checkpoint",
+				"hardfork", hardfork.Name,
+				"configNumber", hardfork.Number,
+				"currentNumber", header.Number,
+				"chainId", chain.Config().ChainID)
+		}
+
+		if hardfork.Number.Cmp(header.Number) == 0 {
+			log.Info("Trigger system contract upgrade",
+				"hardfork", hardfork.Name,
+				"height", header.Number,
+				"chainId", chain.Config().ChainID)
 			if err := systemcontract.ApplySystemContractUpgrade(hardfork.Name, state, header,
 				newChainContext(chain, c), c.chainConfig); err != nil {
 				return err
